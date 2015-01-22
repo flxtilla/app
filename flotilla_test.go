@@ -1,6 +1,7 @@
 package flotilla
 
 import (
+	"fmt"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -47,12 +48,11 @@ func TestRouteOK(t *testing.T) {
 	}
 }
 
-/*
 func testRouteNotOK(method string, t *testing.T) {
 	passed := false
-	f := New("flotilla_testroutenotok", DefaultEngine)
+	f := New("flotilla_testroutenotok")
 	othermethod := methodNotMethod(method)
-	f.Handle(NewRoute(othermethod, "/test_notfound", false, []HandlerFunc{func(ctx *Ctx) { passed = true }}))
+	f.Handle(NewRoute(othermethod, "/test_notfound", false, []Manage{func(ctx *Ctx) { passed = true }}))
 	f.Configure(f.Configuration...)
 
 	w := PerformRequest(f, method, "/test_notfound")
@@ -74,11 +74,11 @@ func TestRouteNotOK(t *testing.T) {
 func testBlueprintRoute(method string, t *testing.T) {
 	passed := false
 
-	f := New("flotilla_test_Blueprint", DefaultEngine)
+	f := New("flotilla_test_Blueprint")
 
 	b := NewBlueprint("/blueprint")
 
-	blueprintroute := NewRoute(method, "/test_blueprint", false, []HandlerFunc{func(ctx *Ctx) {
+	blueprintroute := NewRoute(method, "/test_blueprint", false, []Manage{func(ctx *Ctx) {
 		passed = true
 	}})
 
@@ -110,11 +110,11 @@ func TestBlueprintRoute(t *testing.T) {
 func testMountBlueprint(method string, t *testing.T) {
 	passed := false
 
-	f := New("flotilla_test_BlueprintMount", DefaultEngine)
+	f := New("flotilla_test_BlueprintMount")
 
 	b := NewBlueprint("/mount")
 
-	blueprintroute := NewRoute(method, "/test_blueprint", false, []HandlerFunc{func(ctx *Ctx) {
+	blueprintroute := NewRoute(method, "/test_blueprint", false, []Manage{func(ctx *Ctx) {
 		passed = true
 	}})
 
@@ -153,4 +153,3 @@ func TestMountBlueprint(t *testing.T) {
 		testMountBlueprint(m, t)
 	}
 }
-*/

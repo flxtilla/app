@@ -17,12 +17,17 @@ type (
 		*Config
 		*Env
 		*Blueprint
+		*Signals
 	}
 )
 
 // Returns a new App instance with no configuration.
 func Empty(name string) *App {
-	app := &App{name: name, engine: &engine{}, Env: EmptyEnv()}
+	app := &App{name: name,
+		engine:  defaultEngine(),
+		Env:     EmptyEnv(),
+		Signals: newsignals(),
+	}
 	app.p.New = app.newCtx
 	return app
 }
@@ -43,9 +48,18 @@ func (a *App) Name() string {
 	return a.name
 }
 
-func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	rslt := a.lookup(r.Method, r.URL.Path)
-	ctx := a.getCtx(w, r, rslt)
+func (a *App) rcvr(c *Ctx) {
+	if rcv := recover(); rcv != nil {
+		p := newError(fmt.Sprintf("%s", rcv))
+		c.errorTyped(p, ErrorTypePanic, stack(3))
+		c.Status(500)
+	}
+}
+
+func (a *App) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	rslt := a.lookup(req.Method, req.URL.Path)
+	ctx := a.getCtx(w, req, rslt)
+	defer a.rcvr(ctx)
 	rslt.handler(ctx)
 	a.putCtx(ctx)
 }

@@ -1,6 +1,10 @@
 package flotilla
 
-import "net/http"
+import (
+	"mime/multipart"
+	"net/http"
+	"net/url"
+)
 
 var (
 	builtinextensions = map[string]interface{}{
@@ -10,13 +14,18 @@ var (
 		"cookies":          cookies,
 		"flash":            flash,
 		"flashmessages":    flashmessages,
+		"form":             form,
 		"redirect":         redirect,
 		"rendertemplate":   rendertemplate,
 		"serveplain":       serveplain,
 		"servefile":        servefile,
-		"status":           abort,
+		"status":           status,
 		"urlfor":           urlfor,
 	}
+)
+
+type (
+	RequestFiles map[string][]*multipart.FileHeader
 )
 
 func validExtension(fn interface{}) error {
@@ -33,16 +42,18 @@ func abort(c *Ctx, code int) error {
 	return nil
 }
 
-func (ctx *Ctx) Status(code int) {
-	//if ctx.statusfunc != nil {
-	//	ctx.statusfunc(code)
-	//} else {
-	ctx.Call("status", ctx, code)
-	//}
-}
-
 func (ctx *Ctx) Abort(code int) {
 	ctx.Call("abort", ctx, code)
+}
+
+func status(c *Ctx, code int) error {
+	rslt := c.App.lookupstatus(code)
+	rslt.handler(c)
+	return nil
+}
+
+func (ctx *Ctx) Status(code int) {
+	ctx.Call("status", ctx, code)
 }
 
 func redirect(ctx *Ctx, code int, location string) error {
@@ -138,7 +149,7 @@ func (ctx *Ctx) UrlExternal(route string, params ...string) string {
 }
 
 func flash(ctx *Ctx, category string, message string) error {
-	/*if fl := ctx.Session.Get("_flashes"); fl != nil {
+	if fl := ctx.Session.Get("_flashes"); fl != nil {
 		if fls, ok := fl.(map[string]string); ok {
 			fls[category] = message
 			ctx.Session.Set("_flashes", fls)
@@ -147,7 +158,7 @@ func flash(ctx *Ctx, category string, message string) error {
 		fl := make(map[string]string)
 		fl[category] = message
 		ctx.Session.Set("_flashes", fl)
-	}*/
+	}
 	return nil
 }
 
@@ -158,7 +169,7 @@ func (ctx *Ctx) Flash(category string, message string) {
 
 func flashmessages(ctx *Ctx, categories []string) []string {
 	var ret []string
-	/*if fl := ctx.Session.Get("_flashes"); fl != nil {
+	if fl := ctx.Session.Get("_flashes"); fl != nil {
 		if fls, ok := fl.(map[string]string); ok {
 			for k, v := range fls {
 				if existsIn(k, categories) {
@@ -168,7 +179,7 @@ func flashmessages(ctx *Ctx, categories []string) []string {
 			}
 			ctx.Session.Set("_flashes", fls)
 		}
-	}*/
+	}
 	return ret
 }
 
@@ -180,12 +191,12 @@ func (ctx *Ctx) FlashMessages(categories ...string) []string {
 
 func allflashmessages(ctx *Ctx) map[string]string {
 	var ret map[string]string
-	/*if fl := ctx.Session.Get("_flashes"); fl != nil {
+	if fl := ctx.Session.Get("_flashes"); fl != nil {
 		if fls, ok := fl.(map[string]string); ok {
 			ret = fls
 		}
 	}
-	ctx.Session.Delete("_flashes")*/
+	ctx.Session.Delete("_flashes")
 	return ret
 }
 
@@ -193,4 +204,25 @@ func allflashmessages(ctx *Ctx) map[string]string {
 func (ctx *Ctx) AllFlashMessages() map[string]string {
 	ret, _ := ctx.Call("allflashmessages", ctx)
 	return ret.(map[string]string)
+}
+
+func form(ctx *Ctx) url.Values {
+	return ctx.Request.Form
+}
+
+func (ctx *Ctx) Form() (url.Values, error) {
+	ret, err := ctx.Call("form", ctx)
+	return ret.(url.Values), err
+}
+
+func files(ctx *Ctx) RequestFiles {
+	if ctx.Request.MultipartForm.File != nil {
+		return ctx.Request.MultipartForm.File
+	}
+	return nil
+}
+
+func (ctx *Ctx) Files() (RequestFiles, error) {
+	ret, err := ctx.Call("files", ctx)
+	return ret.(RequestFiles), err
 }

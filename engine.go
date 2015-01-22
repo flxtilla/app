@@ -1,6 +1,8 @@
 package flotilla
 
 import (
+	"net/http"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -37,7 +39,9 @@ type (
 	}
 
 	engine struct {
-		trees map[string]*node
+		RedirectTrailingSlash bool
+		RedirectFixedPath     bool
+		trees                 map[string]*node
 	}
 
 	result struct {
@@ -48,13 +52,17 @@ type (
 	}
 )
 
+func defaultEngine() *engine {
+	return &engine{RedirectTrailingSlash: true, RedirectFixedPath: true}
+}
+
 func (e *engine) manage(method string, path string, m Manage) {
 	if path[0] != '/' {
 		panic("path must begin with '/'")
 	}
 
 	if e.trees == nil {
-		e.trees = make(map[string]*node)
+		e.trees = newTrees()
 	}
 
 	root := e.trees[method]
@@ -66,13 +74,60 @@ func (e *engine) manage(method string, path string, m Manage) {
 	root.addRoute(path, m)
 }
 
+func newTrees() map[string]*node {
+	trees := make(map[string]*node)
+	defaultStatuses(trees)
+	return trees
+}
+
+func (e *engine) lookupstatus(code int) *result {
+	if root := e.trees["STATUS"]; root != nil {
+		if manage, params, tsr := root.getValue(strconv.Itoa(code)); manage != nil {
+			return &result{code, manage, params, tsr}
+		}
+	}
+	return &result{code, nil, nil, false}
+}
+
 func (e *engine) lookup(method, path string) *result {
 	if root := e.trees[method]; root != nil {
 		if manage, params, tsr := root.getValue(path); manage != nil {
 			return &result{200, manage, params, tsr}
+		} else if method != "CONNECT" && path != "/" {
+			code := 301
+			if method != "GET" {
+				code = 307
+			}
+			if tsr && e.RedirectTrailingSlash {
+				var newpath string
+				if path[len(path)-1] == '/' {
+					newpath = path[:len(path)-1]
+				} else {
+					newpath = path + "/"
+				}
+				return &result{code: code,
+					handler: func(c *Ctx) {
+						c.Request.URL.Path = newpath
+						http.Redirect(c.RW, c.Request, c.Request.URL.String(), code)
+					}}
+			}
+			if e.RedirectFixedPath {
+				fixedPath, found := root.findCaseInsensitivePath(
+					CleanPath(path),
+					e.RedirectTrailingSlash,
+				)
+				if found {
+					return &result{code: code,
+						handler: func(c *Ctx) {
+							c.Request.URL.Path = string(fixedPath)
+							http.Redirect(c.RW, c.Request, c.Request.URL.String(), code)
+						}}
+				}
+			}
+
 		}
 	}
-	return &result{}
+	return e.lookupstatus(404)
 }
 
 // ByName returns the value of the first Param which key matches the given name.

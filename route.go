@@ -16,7 +16,6 @@ var (
 type (
 	// Data about a route for use & reuse within App.
 	Route struct {
-		//p          sync.Pool
 		registered bool
 		blueprint  *Blueprint
 		static     bool
@@ -24,8 +23,7 @@ type (
 		base       string
 		path       string
 		handlers   []Manage
-		//ctxprocessors map[string]interface{}
-		Name string
+		Name       string
 	}
 
 	// A map of Route instances keyed by a string.

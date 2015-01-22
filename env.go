@@ -45,6 +45,7 @@ func (e *Env) defaults() {
 	e.Store.addDefault("session", "lifetime", "2629743")
 	e.Store.add("static", "directories", workingStatic)
 	e.Store.add("template", "directories", workingTemplates)
+	e.Store.add("httpstatus", "html", "true")
 }
 
 // EmptyEnv produces an Env with intialization but no configuration.
