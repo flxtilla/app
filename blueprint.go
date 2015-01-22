@@ -9,8 +9,6 @@ type (
 		held       []*Route
 	}
 
-	// A Blueprint gathers any number routes around a prefix and an array of
-	// group specific handlers.
 	Blueprint struct {
 		*setupstate
 		app      *App
@@ -21,7 +19,6 @@ type (
 	}
 )
 
-// Blueprints provides a flat array of Blueprint instances attached to the App.
 func (app *App) Blueprints() []*Blueprint {
 	type IterC func(bs []*Blueprint, fn IterC)
 
@@ -41,7 +38,6 @@ func (app *App) Blueprints() []*Blueprint {
 	return bps
 }
 
-// RegisterBlueprints integrates the given blueprints with the App.
 func (app *App) RegisterBlueprints(blueprints ...*Blueprint) {
 	for _, blueprint := range blueprints {
 		if existing, ok := app.existingBlueprint(blueprint.Prefix); ok {
@@ -63,9 +59,6 @@ func (app *App) existingBlueprint(prefix string) (*Blueprint, bool) {
 	return nil, false
 }
 
-// Mount takes an unregistered blueprint, registering and mounting the routes to
-// the provided string mount point with a copy of the blueprint. If inherit is
-// true, the blueprint becomes a child blueprint of app.Blueprint.
 func (app *App) Mount(mount string, inherit bool, blueprints ...*Blueprint) error {
 	var mbp *Blueprint
 	var mbs []*Blueprint
@@ -101,7 +94,6 @@ func (b *Blueprint) pathFor(path string) string {
 	return joined
 }
 
-// NewBlueprint returns a new Blueprint with the provided string prefix.
 func NewBlueprint(prefix string) *Blueprint {
 	return &Blueprint{setupstate: &setupstate{},
 		Prefix: prefix,
@@ -109,7 +101,6 @@ func NewBlueprint(prefix string) *Blueprint {
 	}
 }
 
-// New creates a new child Blueprint from the existing Blueprint.
 func (b *Blueprint) NewBlueprint(component string, handlers ...Manage) *Blueprint {
 	prefix := b.pathFor(component)
 
@@ -121,7 +112,6 @@ func (b *Blueprint) NewBlueprint(component string, handlers ...Manage) *Blueprin
 	return newb
 }
 
-// Register will provide the app instance to the blueprint to finalize all deferred actions.
 func (b *Blueprint) Register(a *App) {
 	b.app = a
 	b.runDeferred()
@@ -152,8 +142,6 @@ func (b *Blueprint) handlerExists(outside Manage) bool {
 	return false
 }
 
-// Use adds any number of Manage to the Blueprint which will be run before
-// route handlers for all Route attached to the Blueprint.
 func (b *Blueprint) Use(handlers ...Manage) {
 	for _, handler := range handlers {
 		if !b.handlerExists(handler) {
@@ -162,8 +150,6 @@ func (b *Blueprint) Use(handlers ...Manage) {
 	}
 }
 
-// UseAt adds any number of Manage to the Blueprint at the given index, for
-// when you must control the position in relation to other middleware.
 func (b *Blueprint) UseAt(index int, handlers ...Manage) {
 	if index > len(b.Handlers) {
 		b.Use(handlers...)
@@ -213,9 +199,6 @@ func (b *Blueprint) register(route *Route) {
 	route.registered = true
 }
 
-// Handle registers new handlers and/or existing handlers with a constructed Route.
-// For GET, POST, DELETE, PATCH, PUT, OPTIONS, and HEAD requests the respective
-// shortcut functions can be used by specifying path & handlers.
 func (b *Blueprint) Handle(route *Route) {
 	register := func() {
 		b.register(route)
@@ -253,29 +236,7 @@ func (b *Blueprint) HEAD(path string, handlers ...Manage) {
 	b.Handle(NewRoute("HEAD", path, false, handlers))
 }
 
-// STATIC adds a Static route handled by the app, based on the blueprint prefix.
 func (b *Blueprint) STATIC(path string) {
 	b.push(func() { b.app.StaticDirs(dropTrailing(path, "*filepath")) }, nil)
 	b.Handle(NewRoute("GET", path, true, []Manage{handleStatic}))
 }
-
-/*
-// Custom HttpStatus for the group, set and called from engine HttpStatuses
-func (b *Blueprint) StatusHandle(code int, handlers ...Manage) {
-	statushandler := func(c context.Context) {
-		curr := c.Value("Current").(Current)
-		statusCtx := b.app.tmpCtx(curr.Writer(), curr.Request())
-		s := len(handlers)
-		for i := 0; i < s; i++ {
-			handlers[i](statusCtx)
-		}
-		for _, fn := range statusCtx.deferred {
-			fn(statusCtx)
-		}
-	}
-	register := func() {
-		b.app.TakeStatus(code, statushandler)
-	}
-	b.push(register, nil)
-}
-*/

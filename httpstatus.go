@@ -71,15 +71,13 @@ func statusManage(code int) Manage {
 	}
 }
 
-// PanicHandle is the default Manage for 500 & internal panics. Retrieves all
-// ErrorTypePanic from context.Context.Errors, sends signal, logs to stdout or logger, and
-// serves a basic html page if engine.ServePanic is true.
 func panicManage(c *Ctx) {
+	c.RW.WriteHeader(500)
 	panics := c.Errors.ByType(ErrorTypePanic)
 	var auffer bytes.Buffer
 	for _, p := range panics {
-		//sig := fmt.Sprintf("encountered an internal error: %s\n-----\n%s\n-----\n", p.Err, p.Meta)
-		//curr.engine.Send("panic", sig)
+		sig := fmt.Sprintf("encountered an internal error: %s\n-----\n%s\n-----\n", p.Err, p.Meta)
+		c.App.Panic(sig)
 		if !c.App.Mode.Production {
 			reader := bufio.NewReader(bytes.NewReader([]byte(fmt.Sprintf("%s", p.Meta))))
 			var err error
@@ -105,5 +103,7 @@ func panicManage(c *Ctx) {
 		servePanic := fmt.Sprintf(panicHtml, auffer.String())
 		c.RW.Header().Set("Content-Type", "text/html")
 		c.RW.Write([]byte(servePanic))
+	} else {
+		c.RW.Write([]byte(fmt.Sprintf(statusText, 500, http.StatusText(500))))
 	}
 }

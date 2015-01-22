@@ -23,8 +23,6 @@ type (
 		Testing     bool
 	}
 
-	// The App environment containing configuration variables & their store
-	// as well as other info & data relevant to the app.
 	Env struct {
 		Mode *Modes
 		Store
@@ -48,7 +46,6 @@ func (e *Env) defaults() {
 	e.Store.add("httpstatus", "html", "true")
 }
 
-// EmptyEnv produces an Env with intialization but no configuration.
 func EmptyEnv() *Env {
 	return &Env{Mode: &Modes{true, false, false},
 		Store:         make(Store),
@@ -58,13 +55,11 @@ func EmptyEnv() *Env {
 	}
 }
 
-// NewEnv configures an intialized Env.
 func (env *Env) BaseEnv() {
 	env.AddExtensions(builtinextensions)
 	env.defaults()
 }
 
-// Merges an outside env instance with the calling Env.
 func (env *Env) MergeEnv(other *Env) {
 	env.MergeStore(other.Store)
 	for _, fs := range other.Assets {
@@ -75,7 +70,6 @@ func (env *Env) MergeEnv(other *Env) {
 	env.AddExtensions(other.extensions)
 }
 
-// MergeStore merges a Store instance with the Env's Store, without replacement.
 func (env *Env) MergeStore(other Store) {
 	for k, v := range other {
 		if !v.defaultvalue {
@@ -86,7 +80,6 @@ func (env *Env) MergeStore(other Store) {
 	}
 }
 
-// SetMode sets the running mode for the App env by a string.
 func (env *Env) SetMode(mode string, value bool) error {
 	m := reflect.ValueOf(env.Mode).Elem().FieldByName(mode)
 	if m.CanSet() {
@@ -106,9 +99,6 @@ func (env *Env) CtxProcessors(fns map[string]interface{}) {
 	}
 }
 
-// AddExtension adds a single Ctx function with the name string, checking that
-// the function is a valid function returning 1 value, or 1 value and 1 error
-// value.
 func (env *Env) AddExtension(name string, fn interface{}) error {
 	err := validExtension(fn)
 	if err == nil {
@@ -118,8 +108,6 @@ func (env *Env) AddExtension(name string, fn interface{}) error {
 	return err
 }
 
-// AddExtensions stores cross-handler functions in the Env as intermediate staging
-// for later use by Ctx.
 func (env *Env) AddExtensions(fns map[string]interface{}) error {
 	for k, v := range fns {
 		err := env.AddExtension(k, v)
@@ -130,12 +118,10 @@ func (env *Env) AddExtensions(fns map[string]interface{}) error {
 	return nil
 }
 
-// AddTplFuncs adds template functions stored in the Env for use by a Templator.
 func (env *Env) AddTplFunc(name string, fn interface{}) {
 	env.tplfunctions[name] = fn
 }
 
-// AddTplFuncs adds template functions stored in the Env for use by a Templator.
 func (env *Env) AddTplFuncs(fns map[string]interface{}) {
 	for k, v := range fns {
 		env.AddTplFunc(k, v)
@@ -158,8 +144,6 @@ func (env *Env) defaultsessionmanager() *session.Manager {
 	return d
 }
 
-// SessionInit initializes the session using the SessionManager, or default if
-// no session manage is specified.
 func (env *Env) SessionInit() {
 	if env.SessionManager == nil {
 		env.SessionManager = env.defaultsessionmanager()

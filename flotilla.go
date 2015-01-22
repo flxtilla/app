@@ -7,9 +7,6 @@ import (
 )
 
 type (
-	// The base of running a Flotilla instance is an App struct with a Name,
-	// an Env with information specific to running the App, and a chain of
-	// Blueprints
 	App struct {
 		p    sync.Pool
 		name string
@@ -17,22 +14,20 @@ type (
 		*Config
 		*Env
 		*Blueprint
-		*Signals
+		*Messaging
 	}
 )
 
-// Returns a new App instance with no configuration.
 func Empty(name string) *App {
 	app := &App{name: name,
-		engine:  defaultEngine(),
-		Env:     EmptyEnv(),
-		Signals: newsignals(),
+		engine:    defaultEngine(),
+		Env:       EmptyEnv(),
+		Messaging: newMessaging(),
 	}
 	app.p.New = app.newCtx
 	return app
 }
 
-// Returns a new App with default configuration.
 func New(name string, conf ...Configuration) *App {
 	app := Empty(name)
 	app.BaseEnv()
@@ -53,6 +48,7 @@ func (a *App) rcvr(c *Ctx) {
 		p := newError(fmt.Sprintf("%s", rcv))
 		c.errorTyped(p, ErrorTypePanic, stack(3))
 		c.Status(500)
+		a.putCtx(c)
 	}
 }
 

@@ -7,8 +7,6 @@ import (
 )
 
 type (
-	// TData is a map sent to and accessible within the template, by the
-	// builtin rendertemplate function.
 	TData map[string]interface{}
 )
 
@@ -37,7 +35,6 @@ func TemplateData(ctx *Ctx, any interface{}) TData {
 	return td
 }
 
-// GetFlashMessages gets flash messages stored with TData by category.
 func (t TData) GetFlashMessages(categories ...string) []string {
 	var ret []string
 	if fls, ok := t["Flash"].(map[string]string); ok {
@@ -61,8 +58,6 @@ func (t TData) UrlFor(route string, external bool, params ...string) string {
 	return fmt.Sprintf("Unable to return a url from: %s, %s, external(%t)", route, params, external)
 }
 
-// HTML will call the context processor by name return html, html formatted error,
-// or html formatted notice that the processor could not return an html value.
 func (t TData) HTML(name string) template.HTML {
 	if fn, ok := t.ctxPrc(name); ok {
 		res, err := call(fn)
@@ -76,9 +71,6 @@ func (t TData) HTML(name string) template.HTML {
 	return template.HTML(fmt.Sprintf("<p>context processor %s unprocessable by HTML</p>", name))
 }
 
-// STRING will call the context processor by name, returning a string value, an
-// error string value, or a string indicating that the processor could not return
-// a string value.
 func (t TData) STRING(name string) string {
 	if fn, ok := t.ctxPrc(name); ok {
 		res, err := call(fn)
@@ -92,7 +84,6 @@ func (t TData) STRING(name string) string {
 	return fmt.Sprintf("context processor %s unprocessable by STRING", name)
 }
 
-// CALL will call the context processor by name, returning an interface{} or error.
 func (t TData) CALL(name string) interface{} {
 	if fn, ok := t.ctxPrc(name); ok {
 		if res, err := call(fn); err == nil {

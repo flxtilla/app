@@ -34,19 +34,14 @@ var (
 )
 
 type (
-	// A StoreItem contains a default string value and/or a string value.
 	StoreItem struct {
 		defaultvalue bool
 		Value        string
 	}
 
-	// Store is a map of StoreItem managed by App.Env, used as a store of varied
-	// configuration items that might be represented with a default and/or explicitly
-	// set value.
 	Store map[string]*StoreItem
 )
 
-// LoadConfFile loads a text configuration file into a Store.
 func (s Store) LoadConfFile(filename string) (err error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -58,7 +53,6 @@ func (s Store) LoadConfFile(filename string) (err error) {
 	return err
 }
 
-// LoadConfByte loads a text configuration file as byte into a Store.
 func (s Store) LoadConfByte(b []byte, name string) (err error) {
 	reader := bufio.NewReader(bytes.NewReader(b))
 	err = s.parse(reader, name)
@@ -136,7 +130,6 @@ func (s Store) addDefault(section, key, value string) {
 	s[s.newKey(section, key)] = &StoreItem{Value: value, defaultvalue: true}
 }
 
-// Bool attempts to return the storeitem value as type bool
 func (si StoreItem) Bool() (bool, error) {
 	if value, ok := boolString[strings.ToLower(si.Value)]; ok {
 		return value, nil
@@ -144,7 +137,6 @@ func (si StoreItem) Bool() (bool, error) {
 	return false, newError("could not return Bool value from StoreItem")
 }
 
-// Float attempts to return the storeitem value as type float
 func (si *StoreItem) Float() (float64, error) {
 	if value, err := strconv.ParseFloat(si.Value, 64); err == nil {
 		return value, nil
@@ -152,7 +144,6 @@ func (si *StoreItem) Float() (float64, error) {
 	return 0.0, newError("could not return Float value from StoreItem")
 }
 
-// Int attempts to return the storeitem value as type int
 func (si *StoreItem) Int() (int, error) {
 	if value, err := strconv.Atoi(si.Value); err == nil {
 		return value, nil
@@ -160,7 +151,6 @@ func (si *StoreItem) Int() (int, error) {
 	return 0, newError("could not return Int value from StoreItem")
 }
 
-// Int64 attempts to return the storeitem value as type int64
 func (si *StoreItem) Int64() (int64, error) {
 	if value, err := strconv.ParseInt(si.Value, 10, 64); err == nil {
 		return value, nil
@@ -168,8 +158,6 @@ func (si *StoreItem) Int64() (int64, error) {
 	return 0, newError("could not return Int64 value from StoreItem")
 }
 
-// List updates the storeitem value to a list with the provided strings, and
-// then returns the updated value as a string array type.
 func (si *StoreItem) List(li ...string) []string {
 	list := strings.Split(si.Value, ",")
 	for _, item := range li {

@@ -6,9 +6,6 @@ import (
 )
 
 type (
-	// Staticor is an interface to handling static files requiring methods to
-	// get & set string directories as well as determine(and potentially handle
-	// however appropriate) existence of static files given a string and a Ctx.
 	Staticor interface {
 		StaticDirs(...string) []string
 		Exists(string, *Ctx) bool
@@ -25,7 +22,6 @@ func (env *Env) StaticorInit() {
 	}
 }
 
-// A string array of static dirs set in env.Store["staticdirectories"]
 func (env *Env) StaticDirs(dirs ...string) []string {
 	storedirs := env.Store["STATIC_DIRECTORIES"].List(dirs...)
 	if env.Staticor != nil {

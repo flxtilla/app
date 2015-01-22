@@ -11,7 +11,6 @@ import (
 )
 
 type (
-	// Templator is an interface with methods for app templating.
 	Templator interface {
 		Render(io.Writer, string, interface{}) error
 		ListTemplateDirs() []string
@@ -19,28 +18,23 @@ type (
 		UpdateTemplateDirs(...string)
 	}
 
-	// The default Flotilla templator
 	templator struct {
 		*djinn.Djinn
 		TemplateDirs []string
 	}
 
-	// The default templator loader
 	Loader struct {
 		env            *Env
 		FileExtensions []string
 	}
 )
 
-// TemplatorInit sets a default templator if one is not set, and gathers template
-// directories from all attached Flotilla envs.
 func (env *Env) TemplatorInit() {
 	if env.Templator == nil {
 		env.Templator = NewTemplator(env)
 	}
 }
 
-// TemplateDirs produces a listing of templator template directories.
 func (env *Env) TemplateDirs(dirs ...string) []string {
 	storedirs := env.Store["TEMPLATE_DIRECTORIES"].List(dirs...)
 	if env.Templator != nil {
@@ -50,7 +44,6 @@ func (env *Env) TemplateDirs(dirs ...string) []string {
 	return storedirs
 }
 
-// NewTemplator returns a new instance of the default Flotilla templator.
 func NewTemplator(env *Env) *templator {
 	j := &templator{Djinn: djinn.Empty()}
 	j.UpdateTemplateDirs(env.Store["TEMPLATE_DIRECTORIES"].List()...)
@@ -91,9 +84,6 @@ func (fl *Loader) ValidFileExtension(ext string) bool {
 	return false
 }
 
-// AssetTemplates returns a string array of templates in binary assets attached
-// to the application. Iterates all assets, returns filenames matching flotilla
-// loader valid extensions(default .html, .dji).
 func (fl *Loader) AssetTemplates() []string {
 	var ret []string
 	for _, assetfs := range fl.env.Assets {
@@ -106,9 +96,6 @@ func (fl *Loader) AssetTemplates() []string {
 	return ret
 }
 
-// ListTemplates returns a string array of absolute template paths for all
-// templates dirs & assets matching valid extensions(default .html, .dji) and
-// associated with the flotilla loader.
 func (fl *Loader) ListTemplates() interface{} {
 	var ret []string
 	for _, p := range fl.env.TemplateDirs() {

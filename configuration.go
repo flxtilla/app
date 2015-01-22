@@ -1,6 +1,9 @@
 package flotilla
 
-import "strings"
+import (
+	"log"
+	"strings"
+)
 
 var (
 	configureLast = []Configuration{cblueprints,
@@ -16,7 +19,6 @@ type (
 		deferred      []Configuration
 	}
 
-	// A function that takes an App pointer to configure the App.
 	Configuration func(*App) error
 )
 
@@ -24,7 +26,6 @@ func defaultConfig() *Config {
 	return &Config{deferred: configureLast}
 }
 
-// Configure takes any number of Configuration functions and to run the app through.
 func (a *App) Configure(c ...Configuration) error {
 	var err error
 	a.Configuration = append(a.Configuration, c...)
@@ -65,7 +66,6 @@ func cblueprints(a *App) error {
 	return nil
 }
 
-// Mode takes a string for development, production, or testing to set the App mode.
 func Mode(mode string, value bool) Configuration {
 	return func(a *App) error {
 		m := strings.Title(mode)
@@ -81,8 +81,6 @@ func Mode(mode string, value bool) Configuration {
 	}
 }
 
-// EnvItem adds strings of the form "section_label:value" or "label:value" to
-// the Env store, bypassing and without reading a conf file.
 func EnvItem(items ...string) Configuration {
 	return func(a *App) error {
 		for _, item := range items {
@@ -100,21 +98,18 @@ func EnvItem(items ...string) Configuration {
 	}
 }
 
-// CtxFunc adds a single function accessible as a Context Function.
 func Extension(name string, fn interface{}) Configuration {
 	return func(a *App) error {
 		return a.Env.AddExtension(name, fn)
 	}
 }
 
-// CtxFuncs adds a map of functions accessible as Context Functions.
 func Extensions(fns map[string]interface{}) Configuration {
 	return func(a *App) error {
 		return a.Env.AddExtensions(fns)
 	}
 }
 
-// Templating supplies a Templator to the App.
 func Templating(t Templator) Configuration {
 	return func(a *App) error {
 		a.Env.Templator = t
@@ -122,7 +117,6 @@ func Templating(t Templator) Configuration {
 	}
 }
 
-// TemplateFunction passes a template function to the env for Templator use.
 func TemplateFunction(name string, fn interface{}) Configuration {
 	return func(a *App) error {
 		a.Env.AddTplFunc(name, fn)
@@ -130,7 +124,6 @@ func TemplateFunction(name string, fn interface{}) Configuration {
 	}
 }
 
-// TemplateFunction passes a map of functions to the env for Templator use.
 func TemplateFunctions(fns map[string]interface{}) Configuration {
 	return func(a *App) error {
 		a.Env.AddTplFuncs(fns)
@@ -138,8 +131,6 @@ func TemplateFunctions(fns map[string]interface{}) Configuration {
 	}
 }
 
-// CtxProcessor adds a single template context processor to the App primary
-// Blueprint. This will affect all Blueprints & Routes.
 func CtxProcessor(name string, fn interface{}) Configuration {
 	return func(a *App) error {
 		a.CtxProcessor(name, fn)
@@ -147,10 +138,17 @@ func CtxProcessor(name string, fn interface{}) Configuration {
 	}
 }
 
-// CtxProcessors adds a map of context processors to the App primary Blueprint.
 func CtxProcessors(fns map[string]interface{}) Configuration {
 	return func(a *App) error {
 		a.CtxProcessors(fns)
+		return nil
+	}
+}
+
+func Logger(l *log.Logger) Configuration {
+	return func(a *App) error {
+		a.Messaging.Logger = l
+		//e.SetConfBool("LoggingOn", true)
 		return nil
 	}
 }

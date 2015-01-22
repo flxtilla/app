@@ -14,15 +14,11 @@ const (
 )
 
 type (
-	// Param is a single URL parameter, consisting of a key and a value.
 	Param struct {
 		Key   string
 		Value string
 	}
 
-	// Params is a Param-slice, as returned by the router. The slice is ordered,
-	// the first URL parameter is also the first slice value. It is safe to read
-	// values by the index.
 	Params []Param
 
 	nodeType uint8
@@ -130,8 +126,6 @@ func (e *engine) lookup(method, path string) *result {
 	return e.lookupstatus(404)
 }
 
-// ByName returns the value of the first Param which key matches the given name.
-// If no matching Param is found, an empty string is returned.
 func (ps Params) ByName(name string) string {
 	for i := range ps {
 		if ps[i].Key == name {
@@ -162,7 +156,6 @@ func countParams(path string) uint8 {
 	return uint8(n)
 }
 
-// increments priority of the given child and reorders if necessary
 func (n *node) incrementChildPrio(i int) int {
 	n.children[i].priority++
 	prio := n.children[i].priority
@@ -182,8 +175,6 @@ func (n *node) incrementChildPrio(i int) int {
 	return i
 }
 
-// addRoute adds a node with the given handle to the path.
-// Not concurrency-safe!
 func (n *node) addRoute(path string, manage Manage) {
 	n.priority++
 	numParams := countParams(path)
@@ -402,11 +393,6 @@ func (n *node) insertChild(numParams uint8, path string, manage Manage) {
 	n.manage = manage
 }
 
-// Returns the handle registered with the given path (key). The values of
-// wildcards are saved to a map.
-// If no handle can be found, a TSR (trailing slash redirect) recommendation is
-// made if a handle exists with an extra (without the) trailing slash for the
-// given path.
 func (n *node) getValue(path string) (manage Manage, p Params, tsr bool) {
 walk: // Outer loop for walking the tree
 	for {
@@ -525,10 +511,6 @@ walk: // Outer loop for walking the tree
 	}
 }
 
-// Makes a case-insensitive lookup of the given path and tries to find a handler.
-// It can optionally also fix trailing slashes.
-// It returns the case-corrected path and a bool indicating wether the lookup
-// was successful.
 func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPath []byte, found bool) {
 	ciPath = make([]byte, 0, len(path)+1) // preallocate enough memory
 

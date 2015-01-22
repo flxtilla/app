@@ -37,7 +37,6 @@ func (e *FlotillaError) Error() string {
 	return fmt.Sprintf(e.format, e.parameters...)
 }
 
-// Used internally with Ctx to collect errors that occurred during an http request.
 type errorMsg struct {
 	Err  string      `json:"error"`
 	Type uint32      `json:"-"`
@@ -52,13 +51,10 @@ func (c *Ctx) errorTyped(err error, typ uint32, meta interface{}) {
 	})
 }
 
-// Attaches an error to a list of errors. Call Error for each error that occurred
-// during the resolution of a request.
 func (c *Ctx) Error(err error, meta interface{}) {
 	c.errorTyped(err, ErrorTypeExternal, meta)
 }
 
-// Returns the last error for the Ctx.
 func (c *Ctx) LastError() error {
 	s := len(c.Errors)
 	if s > 0 {

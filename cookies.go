@@ -25,7 +25,6 @@ func cookies(ctx *Ctx) map[string]*http.Cookie {
 	return ret
 }
 
-// Cookies returns a map of cookies in the request keyed by cookie name.
 func (ctx *Ctx) Cookies() map[string]*http.Cookie {
 	ret, _ := ctx.Call("cookies", ctx)
 	return ret.(map[string]*http.Cookie)
@@ -140,8 +139,6 @@ func (ctx *Ctx) SecureCookie(name string, value string, opts ...interface{}) err
 	return err
 }
 
-// Cookie takes a name, value and optional options(MaxAge as int, Path & Domain
-// as string, Secure & as bool) to add a cookie to the header.
 func (ctx *Ctx) Cookie(name string, value string, opts ...interface{}) error {
 	_, err := ctx.Call("cookie", ctx, false, name, value, opts)
 	return err

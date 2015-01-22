@@ -48,7 +48,6 @@ func isFunc(fn interface{}) bool {
 	return reflect.ValueOf(fn).Kind() == reflect.Func
 }
 
-// See https://github.com/zenazn/goji/blob/master/web/func_equal.go
 func equalFunc(a, b interface{}) bool {
 	if !isFunc(a) || !isFunc(b) {
 		panic("funcEqual: type error!")
@@ -95,7 +94,6 @@ func canBeNil(typ reflect.Type) bool {
 	return false
 }
 
-// From http://golang.org/src/pkg/text/template/funcs.go
 func call(fn reflect.Value, args ...interface{}) (interface{}, error) {
 	typ := fn.Type()
 	numIn := typ.NumIn()
@@ -176,19 +174,6 @@ func MethodColor(method string) (color string) {
 	return color
 }
 
-// CleanPath is the URL version of path.Clean, it returns a canonical URL path
-// for p, eliminating . and .. elements.
-//
-// The following rules are applied iteratively until no further processing can
-// be done:
-//	1. Replace multiple slashes with a single slash.
-//	2. Eliminate each . path name element (the current directory).
-//	3. Eliminate each inner .. path name element (the parent directory)
-//	   along with the non-.. element that precedes it.
-//	4. Eliminate .. elements that begin a rooted path:
-//	   that is, replace "/.." by "/" at the beginning of a path.
-//
-// If the result of this process is an empty string, "/" is returned
 func CleanPath(p string) string {
 	// Turn empty string into "/"
 	if p == "" {
@@ -280,7 +265,6 @@ func CleanPath(p string) string {
 	return string(buf[:w])
 }
 
-// internal helper to lazily create a buffer if necessary
 func bufApp(buf *[]byte, s string, w int, c byte) {
 	if *buf == nil {
 		if s[w] == c {

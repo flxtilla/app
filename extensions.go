@@ -12,6 +12,7 @@ var (
 		"allflashmessages": allflashmessages,
 		"cookie":           cookie,
 		"cookies":          cookies,
+		"files":            files,
 		"flash":            flash,
 		"flashmessages":    flashmessages,
 		"form":             form,
@@ -68,8 +69,6 @@ func redirect(ctx *Ctx, code int, location string) error {
 	}
 }
 
-// Returns a HTTP redirect to the specific location, with the specified code.
-// using the Ctx redirect function.
 func (ctx *Ctx) Redirect(code int, location string) {
 	ctx.Call("redirect", ctx, code, location)
 }
@@ -82,8 +81,6 @@ func serveplain(ctx *Ctx, code int, data []byte) error {
 	return nil
 }
 
-// ServePlain writes plain data into the body stream and updates the HTTP code,
-// using the Ctx serveplain function.
 func (ctx *Ctx) ServePlain(code int, data []byte) {
 	ctx.Call("serveplain", ctx, code, data)
 }
@@ -96,7 +93,6 @@ func servefile(ctx *Ctx, f http.File) error {
 	return err
 }
 
-// ServesFile delivers a specified file using the Ctx servefile function.
 func (ctx *Ctx) ServeFile(f http.File) {
 	ctx.Call("servefile", ctx, f)
 }
@@ -109,8 +105,6 @@ func rendertemplate(ctx *Ctx, name string, data interface{}) error {
 	return nil
 }
 
-// RenderTemplate renders an HTML template response with the Ctx rendertemplate
-// function.
 func (ctx *Ctx) RenderTemplate(name string, data interface{}) {
 	ctx.Call("rendertemplate", ctx, name, data)
 }
@@ -128,8 +122,6 @@ func urlfor(ctx *Ctx, route string, external bool, params []string) (string, err
 	return "", newError("unable to get url for route %s with params %s", route, params)
 }
 
-// Provides a relative url for the route specified using the parameters specified,
-// using the Ctx urlfor function.
 func (ctx *Ctx) UrlRelative(route string, params ...string) string {
 	ret, err := ctx.Call("urlfor", ctx, route, false, params)
 	if err != nil {
@@ -138,8 +130,6 @@ func (ctx *Ctx) UrlRelative(route string, params ...string) string {
 	return ret.(string)
 }
 
-// Provides a full, external url for the route specified using the given parameters,
-// using the Ctx urlfor function.
 func (ctx *Ctx) UrlExternal(route string, params ...string) string {
 	ret, err := ctx.Call("urlfor", ctx, route, true, params)
 	if err != nil {
@@ -162,7 +152,6 @@ func flash(ctx *Ctx, category string, message string) error {
 	return nil
 }
 
-// Flash sets a flash message in the session with a category and a message.
 func (ctx *Ctx) Flash(category string, message string) {
 	ctx.Call("flash", ctx, category, message)
 }
@@ -183,7 +172,6 @@ func flashmessages(ctx *Ctx, categories []string) []string {
 	return ret
 }
 
-// FlashMessages gets flash messages set in the session by provided categories.
 func (ctx *Ctx) FlashMessages(categories ...string) []string {
 	ret, _ := ctx.Call("flashmessages", ctx, categories)
 	return ret.([]string)
@@ -200,7 +188,6 @@ func allflashmessages(ctx *Ctx) map[string]string {
 	return ret
 }
 
-// AllFlashMessages gets all flash messages set in the session.
 func (ctx *Ctx) AllFlashMessages() map[string]string {
 	ret, _ := ctx.Call("allflashmessages", ctx)
 	return ret.(map[string]string)

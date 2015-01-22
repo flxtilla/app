@@ -14,7 +14,6 @@ var (
 )
 
 type (
-	// Data about a route for use & reuse within App.
 	Route struct {
 		registered bool
 		blueprint  *Blueprint
@@ -26,12 +25,9 @@ type (
 		Name       string
 	}
 
-	// A map of Route instances keyed by a string.
 	Routes map[string]*Route
 )
 
-// Routes returns an array of Route instances, with all App routes from all
-// App blueprints.
 func (app *App) Routes() Routes {
 	allroutes := make(Routes)
 	for _, blueprint := range app.Blueprints() {
@@ -55,7 +51,6 @@ func (app *App) existingRoute(route *Route) bool {
 	return false
 }
 
-// MergeRoutes merges the given blueprint with the given routes, by route existence.
 func (app *App) MergeRoutes(blueprint *Blueprint, routes Routes) {
 	for _, route := range routes {
 		if route.static && !app.existingRoute(route) {
@@ -76,8 +71,6 @@ func (rt *Route) handle(c *Ctx) {
 	c.events()
 }
 
-// NewRoute returns a new Route from a string method, a string path, a boolean
-// indicating if the route is static, and an array of Manage
 func NewRoute(method string, path string, static bool, handlers []Manage) *Route {
 	rt := &Route{method: method, static: static, handlers: handlers}
 	if static {
@@ -92,8 +85,6 @@ func NewRoute(method string, path string, static bool, handlers []Manage) *Route
 	return rt
 }
 
-// Named produces a default name for the route based on path & parameters, useful
-// to Blueprint and App, where a route is not specifically named.
 func (rt *Route) Named() string {
 	name := strings.Split(rt.path, "/")
 	name = append(name, strings.ToLower(rt.method))
@@ -108,24 +99,6 @@ func (rt *Route) Named() string {
 	return strings.Join(name, `\`)
 }
 
-// Url takes string parameters and applies them to a Route. First to any :parameter
-// params, then *splat params. If any params are left over(not the case with a
-// *splat), and the route method is GET, a query string of key=value is appended
-// to the end of the url with arbitrarily assigned keys(e.g. value1=param) where
-// no key is provided
-//
-// e.g.
-// r1 := NewRoute("GET", /my/:mysterious/path, false, []Manage{AManage})
-// r2 := NewRoute("GET", /my/*path, false, []Manage{AManage})
-// u1, _ := r1.Url("hello", "world=are" "you=there", "sayhi")
-// u2, _ := r2.Url("hello", "world", "are" "you", "there")
-// fmt.Printf("url1: %s\n", u1)
-//
-//	/my/hello/path?world=are&you=there&value3=sayhi
-//
-// fmt.Printf("url2: %s\n", u2)
-//
-//	/my/hello/world/are/you/there
 func (rt *Route) Url(params ...string) (*url.URL, error) {
 	paramCount := len(params)
 	i := 0
