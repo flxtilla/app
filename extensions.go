@@ -48,8 +48,8 @@ func (ctx *Ctx) Abort(code int) {
 }
 
 func status(c *Ctx, code int) error {
-	rslt := c.App.lookupstatus(code)
-	rslt.handler(c)
+	rslt := c.App.status(code)
+	rslt.manage(c)
 	return nil
 }
 

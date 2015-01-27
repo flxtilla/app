@@ -22,7 +22,7 @@ func templateData(any interface{}) TData {
 }
 
 func TemplateData(ctx *Ctx, any interface{}) TData {
-	ctxcopy := ctx.Copy()
+	ctxcopy := Copy(ctx)
 	td := templateData(any)
 	td["Ctx"] = ctxcopy
 	td["Request"] = ctx.Request
@@ -111,8 +111,8 @@ func (t TData) contextProcessor(fn reflect.Value, ctxcopy *Ctx) reflect.Value {
 	return valueFunc(newfn)
 }
 
-func (t TData) contextProcessors(ctxcopy *Ctx) {
-	for k, fn := range ctxcopy.processors {
-		t[k] = t.contextProcessor(fn, ctxcopy)
+func (t TData) contextProcessors(c *Ctx) {
+	for k, fn := range c.App.ctxprocessors {
+		t[k] = t.contextProcessor(fn, c)
 	}
 }

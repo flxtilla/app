@@ -30,9 +30,9 @@ type (
 		Assets
 		Staticor
 		Templator
-		extensions    map[string]interface{}
+		extensions    map[string]reflect.Value
 		tplfunctions  map[string]interface{}
-		ctxprocessors map[string]interface{}
+		ctxprocessors map[string]reflect.Value
 	}
 )
 
@@ -43,15 +43,15 @@ func (e *Env) defaults() {
 	e.Store.addDefault("session", "lifetime", "2629743")
 	e.Store.add("static", "directories", workingStatic)
 	e.Store.add("template", "directories", workingTemplates)
-	e.Store.add("httpstatus", "html", "true")
+	//e.Store.add("httpstatus", "html", "true")
 }
 
 func EmptyEnv() *Env {
 	return &Env{Mode: &Modes{true, false, false},
 		Store:         make(Store),
-		extensions:    make(map[string]interface{}),
+		extensions:    make(map[string]reflect.Value),
 		tplfunctions:  make(map[string]interface{}),
-		ctxprocessors: make(map[string]interface{}),
+		ctxprocessors: make(map[string]reflect.Value),
 	}
 }
 
@@ -67,7 +67,7 @@ func (env *Env) MergeEnv(other *Env) {
 	}
 	env.StaticDirs(other.Store["STATIC_DIRECTORIES"].List()...)
 	env.TemplateDirs(other.Store["TEMPLATE_DIRECTORIES"].List()...)
-	env.AddExtensions(other.extensions)
+	env.MergeExtensions(other.extensions)
 }
 
 func (env *Env) MergeStore(other Store) {
@@ -90,7 +90,7 @@ func (env *Env) SetMode(mode string, value bool) error {
 }
 
 func (env *Env) CtxProcessor(name string, fn interface{}) {
-	env.ctxprocessors[name] = fn
+	env.ctxprocessors[name] = valueFunc(fn)
 }
 
 func (env *Env) CtxProcessors(fns map[string]interface{}) {
@@ -99,10 +99,16 @@ func (env *Env) CtxProcessors(fns map[string]interface{}) {
 	}
 }
 
+func (env *Env) MergeExtensions(fns map[string]reflect.Value) {
+	for k, v := range fns {
+		env.extensions[k] = v
+	}
+}
+
 func (env *Env) AddExtension(name string, fn interface{}) error {
 	err := validExtension(fn)
 	if err == nil {
-		env.extensions[name] = fn
+		env.extensions[name] = valueFunc(fn)
 		return nil
 	}
 	return err

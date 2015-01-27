@@ -1,10 +1,12 @@
 ##Changelog
 
-### Flotilla 1.0.0 ()
+### Flotilla 1.0.0 (tbd)
 
-- ground up rewrite supporting simpler engines eliminating redundant, baroque engine/flotilla couplings
+- ground-up reassembly & rewrite
+- eliminate dependency on [Engine](https://github.com/thrisp/engine)
+- revised Ctx to support [context.Context](https://github.com/golang/net/tree/master/context) interface
 
-### Flotilla 0.3.2 (unreleased)
+### Flotilla 0.3.2 ~unreleased
 
 - change 'ctx functions' to 'extensions'
 

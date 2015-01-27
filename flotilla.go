@@ -13,14 +13,15 @@ type (
 		*engine
 		*Config
 		*Env
-		*Blueprint
 		*Messaging
+		*Blueprint
 	}
 )
 
-func Empty(name string) *App {
+// Base returns an intialized App with no configuration.
+func Base(name string) *App {
 	app := &App{name: name,
-		engine:    defaultEngine(),
+		engine:    newEngine(),
 		Env:       EmptyEnv(),
 		Messaging: newMessaging(),
 	}
@@ -28,14 +29,13 @@ func Empty(name string) *App {
 	return app
 }
 
+// New returns a Base initialized App with default plus any provided configuration.
 func New(name string, conf ...Configuration) *App {
-	app := Empty(name)
+	app := Base(name)
 	app.BaseEnv()
-	app.Config = defaultConfig()
 	app.Blueprint = NewBlueprint("/")
 	app.STATIC("static")
-	app.Configured = false
-	app.Configuration = conf
+	app.Config = newConfig(conf...)
 	return app
 }
 
@@ -43,21 +43,10 @@ func (a *App) Name() string {
 	return a.name
 }
 
-func (a *App) rcvr(c *Ctx) {
-	if rcv := recover(); rcv != nil {
-		p := newError(fmt.Sprintf("%s", rcv))
-		c.errorTyped(p, ErrorTypePanic, stack(3))
-		c.Status(500)
-		a.putCtx(c)
-	}
-}
-
-func (a *App) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	rslt := a.lookup(req.Method, req.URL.Path)
-	ctx := a.getCtx(w, req, rslt)
-	defer a.rcvr(ctx)
-	rslt.handler(ctx)
-	a.putCtx(ctx)
+func (a *App) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	ctx, cancel := a.getCtx(rw, req)
+	a.engine.serve(ctx)
+	cancel(a, ctx)
 }
 
 func (a *App) Run(addr string) {

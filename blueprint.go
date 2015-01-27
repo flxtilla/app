@@ -15,7 +15,7 @@ type (
 		children []*Blueprint
 		routes   Routes
 		Prefix   string
-		Handlers []Manage
+		Managers []Manage
 	}
 )
 
@@ -41,7 +41,7 @@ func (app *App) Blueprints() []*Blueprint {
 func (app *App) RegisterBlueprints(blueprints ...*Blueprint) {
 	for _, blueprint := range blueprints {
 		if existing, ok := app.existingBlueprint(blueprint.Prefix); ok {
-			existing.Use(blueprint.Handlers...)
+			existing.Use(blueprint.Managers...)
 			app.MergeRoutes(existing, blueprint.routes)
 		} else {
 			app.children = append(app.children, blueprint)
@@ -76,7 +76,7 @@ func (app *App) Mount(mount string, inherit bool, blueprints ...*Blueprint) erro
 		}
 
 		for _, route := range blueprint.held {
-			mbp.Handle(route)
+			mbp.Manage(route)
 		}
 
 		mbs = append(mbs, mbp)
@@ -101,11 +101,11 @@ func NewBlueprint(prefix string) *Blueprint {
 	}
 }
 
-func (b *Blueprint) NewBlueprint(component string, handlers ...Manage) *Blueprint {
+func (b *Blueprint) NewBlueprint(component string, managers ...Manage) *Blueprint {
 	prefix := b.pathFor(component)
 
 	newb := NewBlueprint(prefix)
-	newb.Handlers = b.combineHandlers(handlers)
+	newb.Managers = b.combineManagers(managers)
 
 	b.children = append(b.children, newb)
 
@@ -125,16 +125,16 @@ func (b *Blueprint) runDeferred() {
 	b.deferred = nil
 }
 
-func (b *Blueprint) combineHandlers(handlers []Manage) []Manage {
-	s := len(b.Handlers) + len(handlers)
+func (b *Blueprint) combineManagers(managers []Manage) []Manage {
+	s := len(b.Managers) + len(managers)
 	h := make([]Manage, 0, s)
-	h = append(h, b.Handlers...)
-	h = append(h, handlers...)
+	h = append(h, b.Managers...)
+	h = append(h, managers...)
 	return h
 }
 
-func (b *Blueprint) handlerExists(outside Manage) bool {
-	for _, inside := range b.Handlers {
+func (b *Blueprint) manageExists(outside Manage) bool {
+	for _, inside := range b.Managers {
 		if equalFunc(inside, outside) {
 			return true
 		}
@@ -142,31 +142,31 @@ func (b *Blueprint) handlerExists(outside Manage) bool {
 	return false
 }
 
-func (b *Blueprint) Use(handlers ...Manage) {
-	for _, handler := range handlers {
-		if !b.handlerExists(handler) {
-			b.Handlers = append(b.Handlers, handler)
+func (b *Blueprint) Use(managers ...Manage) {
+	for _, manage := range managers {
+		if !b.manageExists(manage) {
+			b.Managers = append(b.Managers, manage)
 		}
 	}
 }
 
-func (b *Blueprint) UseAt(index int, handlers ...Manage) {
-	if index > len(b.Handlers) {
-		b.Use(handlers...)
+func (b *Blueprint) UseAt(index int, managers ...Manage) {
+	if index > len(b.Managers) {
+		b.Use(managers...)
 		return
 	}
 
 	var newh []Manage
 
-	for _, handler := range handlers {
-		if !b.handlerExists(handler) {
-			newh = append(newh, handler)
+	for _, manage := range managers {
+		if !b.manageExists(manage) {
+			newh = append(newh, manage)
 		}
 	}
 
-	before := b.Handlers[:index]
-	after := append(newh, b.Handlers[index:]...)
-	b.Handlers = append(before, after...)
+	before := b.Managers[:index]
+	after := append(newh, b.Managers[index:]...)
+	b.Managers = append(before, after...)
 }
 
 func (b *Blueprint) add(r *Route) {
@@ -194,12 +194,12 @@ func (b *Blueprint) push(register func(), route *Route) {
 
 func (b *Blueprint) register(route *Route) {
 	route.blueprint = b
-	route.handlers = b.combineHandlers(route.handlers)
+	route.managers = b.combineManagers(route.managers)
 	route.path = b.pathFor(route.base)
 	route.registered = true
 }
 
-func (b *Blueprint) Handle(route *Route) {
+func (b *Blueprint) Manage(route *Route) {
 	register := func() {
 		b.register(route)
 		b.add(route)
@@ -208,35 +208,39 @@ func (b *Blueprint) Handle(route *Route) {
 	b.push(register, route)
 }
 
-func (b *Blueprint) GET(path string, handlers ...Manage) {
-	b.Handle(NewRoute("GET", path, false, handlers))
+func (b *Blueprint) GET(path string, managers ...Manage) {
+	b.Manage(NewRoute("GET", path, false, managers))
 }
 
-func (b *Blueprint) POST(path string, handlers ...Manage) {
-	b.Handle(NewRoute("POST", path, false, handlers))
+func (b *Blueprint) POST(path string, managers ...Manage) {
+	b.Manage(NewRoute("POST", path, false, managers))
 }
 
-func (b *Blueprint) DELETE(path string, handlers ...Manage) {
-	b.Handle(NewRoute("DELETE", path, false, handlers))
+func (b *Blueprint) DELETE(path string, managers ...Manage) {
+	b.Manage(NewRoute("DELETE", path, false, managers))
 }
 
-func (b *Blueprint) PATCH(path string, handlers ...Manage) {
-	b.Handle(NewRoute("PATCH", path, false, handlers))
+func (b *Blueprint) PATCH(path string, managers ...Manage) {
+	b.Manage(NewRoute("PATCH", path, false, managers))
 }
 
-func (b *Blueprint) PUT(path string, handlers ...Manage) {
-	b.Handle(NewRoute("PUT", path, false, handlers))
+func (b *Blueprint) PUT(path string, managers ...Manage) {
+	b.Manage(NewRoute("PUT", path, false, managers))
 }
 
-func (b *Blueprint) OPTIONS(path string, handlers ...Manage) {
-	b.Handle(NewRoute("OPTIONS", path, false, handlers))
+func (b *Blueprint) OPTIONS(path string, managers ...Manage) {
+	b.Manage(NewRoute("OPTIONS", path, false, managers))
 }
 
-func (b *Blueprint) HEAD(path string, handlers ...Manage) {
-	b.Handle(NewRoute("HEAD", path, false, handlers))
+func (b *Blueprint) HEAD(path string, managers ...Manage) {
+	b.Manage(NewRoute("HEAD", path, false, managers))
 }
 
 func (b *Blueprint) STATIC(path string) {
 	b.push(func() { b.app.StaticDirs(dropTrailing(path, "*filepath")) }, nil)
-	b.Handle(NewRoute("GET", path, true, []Manage{handleStatic}))
+	b.Manage(NewRoute("GET", path, true, []Manage{handleStatic}))
+}
+
+func (b *Blueprint) STATUS(path string, manager Manage) {
+	b.app.engine.manage("STATUS", path, manager)
 }

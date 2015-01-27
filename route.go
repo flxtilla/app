@@ -21,7 +21,7 @@ type (
 		method     string
 		base       string
 		path       string
-		handlers   []Manage
+		managers   []Manage
 		Name       string
 	}
 
@@ -57,7 +57,7 @@ func (app *App) MergeRoutes(blueprint *Blueprint, routes Routes) {
 			blueprint.STATIC(route.path)
 		}
 		if !route.static && !app.existingRoute(route) {
-			blueprint.Handle(route)
+			blueprint.Manage(route)
 		}
 	}
 }
@@ -67,12 +67,12 @@ func (rt *Route) App() *App {
 }
 
 func (rt *Route) handle(c *Ctx) {
-	c.handlers = rt.handlers
+	c.managers = rt.managers
 	c.events()
 }
 
-func NewRoute(method string, path string, static bool, handlers []Manage) *Route {
-	rt := &Route{method: method, static: static, handlers: handlers}
+func NewRoute(method string, path string, static bool, managers []Manage) *Route {
+	rt := &Route{method: method, static: static, managers: managers}
 	if static {
 		if fp := strings.Split(path, "/"); fp[len(fp)-1] != "*filepath" {
 			rt.base = filepath.ToSlash(filepath.Join(path, "/*filepath"))

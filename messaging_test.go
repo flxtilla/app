@@ -33,7 +33,7 @@ func testSignal(method string, t *testing.T) {
 			f.Send("testqueue", "SENT")
 		}
 	}})
-	f.Handle(rt)
+	f.Manage(rt)
 	f.Configure(f.Configuration...)
 	PerformRequest(f, method, "/test_signal_sent")
 	if sent == false {

@@ -1,6 +1,7 @@
 package flotilla
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -41,33 +42,18 @@ type (
 	}
 
 	result struct {
-		code    int
-		handler Manage
-		params  Params
-		tsr     bool
+		code   int
+		manage Manage
+		params Params
+		tsr    bool
 	}
 )
 
-func defaultEngine() *engine {
-	return &engine{RedirectTrailingSlash: true, RedirectFixedPath: true}
-}
-
-func (e *engine) manage(method string, path string, m Manage) {
-	if path[0] != '/' {
-		panic("path must begin with '/'")
+func newEngine() *engine {
+	return &engine{RedirectTrailingSlash: true,
+		RedirectFixedPath: true,
+		trees:             newTrees(),
 	}
-
-	if e.trees == nil {
-		e.trees = newTrees()
-	}
-
-	root := e.trees[method]
-	if root == nil {
-		root = new(node)
-		e.trees[method] = root
-	}
-
-	root.addRoute(path, m)
 }
 
 func newTrees() map[string]*node {
@@ -76,63 +62,19 @@ func newTrees() map[string]*node {
 	return trees
 }
 
-func (e *engine) lookupstatus(code int) *result {
-	if root := e.trees["STATUS"]; root != nil {
-		if manage, params, tsr := root.getValue(strconv.Itoa(code)); manage != nil {
-			return &result{code, manage, params, tsr}
-		}
+func (e *engine) manage(method string, path string, m Manage) {
+	if path[0] != '/' {
+		panic("path must begin with '/'")
 	}
-	return &result{code, nil, nil, false}
-}
 
-func (e *engine) lookup(method, path string) *result {
-	if root := e.trees[method]; root != nil {
-		if manage, params, tsr := root.getValue(path); manage != nil {
-			return &result{200, manage, params, tsr}
-		} else if method != "CONNECT" && path != "/" {
-			code := 301
-			if method != "GET" {
-				code = 307
-			}
-			if tsr && e.RedirectTrailingSlash {
-				var newpath string
-				if path[len(path)-1] == '/' {
-					newpath = path[:len(path)-1]
-				} else {
-					newpath = path + "/"
-				}
-				return &result{code: code,
-					handler: func(c *Ctx) {
-						c.Request.URL.Path = newpath
-						http.Redirect(c.RW, c.Request, c.Request.URL.String(), code)
-					}}
-			}
-			if e.RedirectFixedPath {
-				fixedPath, found := root.findCaseInsensitivePath(
-					CleanPath(path),
-					e.RedirectTrailingSlash,
-				)
-				if found {
-					return &result{code: code,
-						handler: func(c *Ctx) {
-							c.Request.URL.Path = string(fixedPath)
-							http.Redirect(c.RW, c.Request, c.Request.URL.String(), code)
-						}}
-				}
-			}
+	root := e.trees[method]
 
-		}
+	if root == nil {
+		root = new(node)
+		e.trees[method] = root
 	}
-	return e.lookupstatus(404)
-}
 
-func (ps Params) ByName(name string) string {
-	for i := range ps {
-		if ps[i].Key == name {
-			return ps[i].Value
-		}
-	}
-	return ""
+	root.addRoute(path, m)
 }
 
 func min(a, b int) int {
@@ -626,4 +568,69 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 		}
 	}
 	return
+}
+
+func (e *engine) status(code int) *result {
+	if root := e.trees["STATUS"]; root != nil {
+		if manage, params, tsr := root.getValue(strconv.Itoa(code)); manage != nil {
+			return &result{code, manage, params, tsr}
+		}
+	}
+	return &result{code, nil, nil, false}
+}
+
+func (e *engine) lookup(method, path string) *result {
+	if root := e.trees[method]; root != nil {
+		if manage, params, tsr := root.getValue(path); manage != nil {
+			return &result{200, manage, params, tsr}
+		} else if method != "CONNECT" && path != "/" {
+			code := 301
+			if method != "GET" {
+				code = 307
+			}
+			if tsr && e.RedirectTrailingSlash {
+				var newpath string
+				if path[len(path)-1] == '/' {
+					newpath = path[:len(path)-1]
+				} else {
+					newpath = path + "/"
+				}
+				return &result{code: code,
+					manage: func(c *Ctx) {
+						c.Request.URL.Path = newpath
+						http.Redirect(c.RW, c.Request, c.Request.URL.String(), code)
+					}}
+			}
+			if e.RedirectFixedPath {
+				fixedPath, found := root.findCaseInsensitivePath(
+					CleanPath(path),
+					e.RedirectTrailingSlash,
+				)
+				if found {
+					return &result{code: code,
+						manage: func(c *Ctx) {
+							c.Request.URL.Path = string(fixedPath)
+							http.Redirect(c.RW, c.Request, c.Request.URL.String(), code)
+						}}
+				}
+			}
+
+		}
+	}
+	return e.status(404)
+}
+
+func rcvr(c *Ctx) {
+	if rcv := recover(); rcv != nil {
+		p := newError(fmt.Sprintf("%s", rcv))
+		c.errorTyped(p, ErrorTypePanic, stack(3))
+		c.Status(500)
+	}
+}
+
+func (e *engine) serve(c *Ctx) {
+	defer rcvr(c)
+	rslt := e.lookup(c.Request.Method, c.Request.URL.Path)
+	c.Result(rslt)
+	rslt.manage(c)
 }

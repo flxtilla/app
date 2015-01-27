@@ -1,10 +1,11 @@
 package flotilla
 
 import (
+	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/thrisp/flotilla/session"
@@ -13,20 +14,26 @@ import (
 type (
 	Manage func(*Ctx)
 
-	Ctx struct {
-		index      int8
-		handlers   []Manage
-		deferred   []Manage
-		extensions map[string]reflect.Value
-		processors map[string]reflect.Value
-		rw         responseWriter
-		RW         ResponseWriter
-		Request    *http.Request
-		Session    session.SessionStore
-		Data       map[string]interface{}
-		App        *App
-		Errors     errorMsgs
-		*recorder
+	canceler interface {
+		cancel(removeFromParent bool, err error)
+		Done() <-chan struct{}
+	}
+
+	context struct {
+		mu       sync.Mutex
+		parent   *context
+		children map[canceler]bool
+		done     chan struct{}
+		err      error
+		value    *Ctx
+	}
+
+	CancelFunc func(*App, *Ctx)
+
+	handlers struct {
+		index    int8
+		managers []Manage
+		deferred []Manage
 	}
 
 	recorder struct {
@@ -38,30 +45,52 @@ type (
 		path      string
 		requester string
 	}
+
+	Ctx struct {
+		lookup     *result
+		extensions map[string]reflect.Value
+		rw         responseWriter
+		RW         ResponseWriter
+		Request    *http.Request
+		Session    session.SessionStore
+		Data       map[string]interface{}
+		App        *App
+		Errors     errorMsgs
+		*context
+		*handlers
+		*recorder
+	}
+)
+
+var (
+	Canceled = errors.New("flotilla.Ctx canceled")
 )
 
 func (a *App) newCtx() interface{} {
-	ctx := &Ctx{index: -1,
+	ctx := &Ctx{
+		handlers:   defaulthandlers(),
 		App:        a,
-		Data:       make(map[string]interface{}),
-		extensions: reflectFuncs(a.extensions),
-		processors: reflectFuncs(a.ctxprocessors),
+		extensions: a.extensions,
 	}
 	ctx.RW = &ctx.rw
 	return ctx
 }
 
-func (a *App) getCtx(rw http.ResponseWriter, req *http.Request, rslt *result) *Ctx {
+func (a *App) getCtx(rw http.ResponseWriter, req *http.Request) (*Ctx, CancelFunc) {
+	ctx := a.getctx(rw, req)
+	cancel := func(app *App, c *Ctx) { c.context.cancel(true, Canceled); app.putCtx(c) }
+	return ctx, cancel
+}
+
+func (a *App) getctx(rw http.ResponseWriter, req *http.Request) *Ctx {
 	ctx := a.p.Get().(*Ctx)
+	ctx.context = &context{done: make(chan struct{}), value: ctx}
 	ctx.recorder = NewRecorder()
 	if mm, err := a.Env.Store["UPLOAD_SIZE"].Int64(); err == nil {
 		req.ParseMultipartForm(mm)
 	}
 	ctx.Request = req
 	ctx.rw.reset(rw)
-	for _, p := range rslt.params {
-		ctx.Data[p.Key] = p.Value
-	}
 	ctx.Start()
 	return ctx
 }
@@ -71,89 +100,82 @@ func (a *App) putCtx(ctx *Ctx) {
 	if !a.Mode.Production {
 		a.Send("out", ctx.LogFmt())
 	}
-	ctx.index = -1
+	ctx.handlers = defaulthandlers()
 	ctx.Session = nil
-	for k, _ := range ctx.Data {
-		delete(ctx.Data, k)
-	}
-	ctx.handlers = nil
+	ctx.Data = nil
+	ctx.managers = nil
 	ctx.deferred = nil
 	ctx.recorder = nil
 	ctx.Errors = nil
+	ctx.context = nil
 	a.p.Put(ctx)
 }
 
-func (ctx *Ctx) Start() {
-	ctx.Session, _ = ctx.App.SessionManager.SessionStart(ctx.RW, ctx.Request)
-}
-
-func (ctx *Ctx) Release() {
-	if !ctx.RW.Written() {
-		ctx.Session.SessionRelease(ctx.RW)
-	}
-}
-
-func (ctx *Ctx) Call(name string, args ...interface{}) (interface{}, error) {
-	return call(ctx.extensions[name], args...)
-}
-
-func (ctx *Ctx) Copy() *Ctx {
-	var rcopy Ctx = *ctx
-	rcopy.index = math.MaxInt8 / 2
-	rcopy.handlers = nil
+func Copy(c *Ctx) *Ctx {
+	child := &context{parent: c.context, done: make(chan struct{}), value: c}
+	propagateCancel(c.context, child)
+	var rcopy Ctx = *c
+	rcopy.context = child
 	return &rcopy
 }
 
-func (ctx *Ctx) events() {
-	ctx.Push(func(c *Ctx) { c.Release() })
-	ctx.Next()
-	for _, fn := range ctx.deferred {
-		fn(ctx)
+func propagateCancel(p *context, child canceler) {
+	if p.Done() == nil {
+		return
 	}
-}
-
-func (ctx *Ctx) Next() {
-	ctx.index++
-	s := int8(len(ctx.handlers))
-	for ; ctx.index < s; ctx.index++ {
-		ctx.handlers[ctx.index](ctx)
-	}
-}
-
-func (ctx *Ctx) Push(fn Manage) {
-	ctx.deferred = append(ctx.deferred, fn)
-}
-
-func (ctx *Ctx) Set(key string, item interface{}) {
-	ctx.Data[key] = item
-}
-
-func (ctx *Ctx) Get(key string) (interface{}, error) {
-	item, ok := ctx.Data[key]
-	if ok {
-		return item, nil
-	}
-	return nil, newError("Key %s does not exist.", key)
-}
-
-func (ctx *Ctx) WriteToHeader(code int, values ...[]string) {
-	if code >= 0 {
-		ctx.RW.WriteHeader(code)
-	}
-	ctx.ModifyHeader("set", values...)
-}
-
-func (ctx *Ctx) ModifyHeader(action string, values ...[]string) {
-	switch action {
-	case "set":
-		for _, v := range values {
-			ctx.RW.Header().Set(v[0], v[1])
+	p.mu.Lock()
+	if p.err != nil {
+		// parent has already been canceled
+		child.cancel(false, p.err)
+	} else {
+		if p.children == nil {
+			p.children = make(map[canceler]bool)
 		}
-	default:
-		for _, v := range values {
-			ctx.RW.Header().Add(v[0], v[1])
+		p.children[child] = true
+	}
+	p.mu.Unlock()
+}
+
+func (c *context) Deadline() (deadline time.Time, ok bool) {
+	return
+}
+
+func (c *context) Done() <-chan struct{} {
+	return c.done
+}
+
+func (c *context) Err() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.err
+}
+
+func (c *context) Value(key interface{}) interface{} {
+	return c.value
+}
+
+func (c *context) cancel(removeFromParent bool, err error) {
+	if err == nil {
+		panic("Ctx.context: internal error: missing cancel error")
+	}
+	c.mu.Lock()
+	c.err = err
+	close(c.done)
+	for child := range c.children {
+		child.cancel(false, err)
+	}
+	c.children = nil
+	c.mu.Unlock()
+
+	if removeFromParent {
+		if c.children != nil {
+			delete(c.children, c)
 		}
 	}
+}
+
+func defaulthandlers() *handlers {
+	return &handlers{index: -1}
 }
 
 func NewRecorder() *recorder {
@@ -206,4 +228,80 @@ func (r *recorder) LogFmt() string {
 		r.requester,
 		MethodColor(r.method), reset, r.method,
 		r.path)
+}
+
+func (ctx *Ctx) Result(r *result) {
+	ctx.lookup = r
+	for _, p := range r.params {
+		ctx.Set(p.Key, p.Value)
+	}
+}
+
+func (ctx *Ctx) Start() {
+	ctx.Session, _ = ctx.App.SessionManager.SessionStart(ctx.RW, ctx.Request)
+}
+
+func (ctx *Ctx) Release() {
+	if !ctx.RW.Written() {
+		ctx.Session.SessionRelease(ctx.RW)
+	}
+}
+
+func (ctx *Ctx) Call(name string, args ...interface{}) (interface{}, error) {
+	return call(ctx.extensions[name], args...)
+}
+
+func (ctx *Ctx) events() {
+	ctx.Push(func(c *Ctx) { c.Release() })
+	ctx.Next()
+	for _, fn := range ctx.deferred {
+		fn(ctx)
+	}
+}
+
+func (ctx *Ctx) Next() {
+	ctx.index++
+	s := int8(len(ctx.managers))
+	for ; ctx.index < s; ctx.index++ {
+		ctx.managers[ctx.index](ctx)
+	}
+}
+
+func (ctx *Ctx) Push(fn Manage) {
+	ctx.deferred = append(ctx.deferred, fn)
+}
+
+func (ctx *Ctx) Set(key string, item interface{}) {
+	if ctx.Data == nil {
+		ctx.Data = make(map[string]interface{})
+	}
+	ctx.Data[key] = item
+}
+
+func (ctx *Ctx) Get(key string) (interface{}, error) {
+	item, ok := ctx.Data[key]
+	if ok {
+		return item, nil
+	}
+	return nil, newError("Key %s does not exist.", key)
+}
+
+func (ctx *Ctx) WriteToHeader(code int, values ...[]string) {
+	if code >= 0 {
+		ctx.RW.WriteHeader(code)
+	}
+	ctx.ModifyHeader("set", values...)
+}
+
+func (ctx *Ctx) ModifyHeader(action string, values ...[]string) {
+	switch action {
+	case "set":
+		for _, v := range values {
+			ctx.RW.Header().Set(v[0], v[1])
+		}
+	default:
+		for _, v := range values {
+			ctx.RW.Header().Add(v[0], v[1])
+		}
+	}
 }

@@ -22,8 +22,8 @@ type (
 	Configuration func(*App) error
 )
 
-func defaultConfig() *Config {
-	return &Config{deferred: configureLast}
+func newConfig(cnf ...Configuration) *Config {
+	return &Config{Configured: false, Configuration: cnf, deferred: configureLast}
 }
 
 func (a *App) Configure(c ...Configuration) error {
@@ -32,7 +32,7 @@ func (a *App) Configure(c ...Configuration) error {
 	for _, fn := range a.Configuration {
 		err = fn(a)
 	}
-	for _, fn := range a.deferred {
+	for _, fn := range a.Config.deferred {
 		err = fn(a)
 	}
 	if err != nil {
