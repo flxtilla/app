@@ -29,13 +29,6 @@ type (
 	RequestFiles map[string][]*multipart.FileHeader
 )
 
-func validExtension(fn interface{}) error {
-	if goodFunc(valueFunc(fn).Type()) {
-		return nil
-	}
-	return newError("function %q is not a valid Flotilla Ctx function; must be a function and return must be 1 value, or 1 value and 1 error value", fn)
-}
-
 func abort(c *Ctx, code int) error {
 	if code >= 0 {
 		c.RW.WriteHeader(code)
@@ -48,7 +41,7 @@ func (ctx *Ctx) Abort(code int) {
 }
 
 func status(c *Ctx, code int) error {
-	rslt := c.App.status(code)
+	rslt := c.App.engine.status(code)
 	rslt.manage(c)
 	return nil
 }
@@ -98,10 +91,10 @@ func (ctx *Ctx) ServeFile(f http.File) {
 }
 
 func rendertemplate(ctx *Ctx, name string, data interface{}) error {
-	td := TemplateData(ctx, data)
-	ctx.Push(func(c *Ctx) {
-		c.App.Templator.Render(c.RW, name, td)
-	})
+	//td := TemplateData(ctx, data)
+	//ctx.Push(func(c *Ctx) {
+	//	c.App.Templator.Render(c.RW, name, td)
+	//})
 	return nil
 }
 
@@ -110,15 +103,15 @@ func (ctx *Ctx) RenderTemplate(name string, data interface{}) {
 }
 
 func urlfor(ctx *Ctx, route string, external bool, params []string) (string, error) {
-	if route, ok := ctx.App.Routes()[route]; ok {
-		routeurl, _ := route.Url(params...)
-		if routeurl != nil {
-			if external {
-				routeurl.Host = ctx.Request.Host
-			}
-			return routeurl.String(), nil
-		}
-	}
+	//if route, ok := ctx.App.Routes()[route]; ok {
+	//	routeurl, _ := route.Url(params...)
+	//	if routeurl != nil {
+	//		if external {
+	//			routeurl.Host = ctx.Request.Host
+	//		}
+	//		return routeurl.String(), nil
+	//	}
+	//}
 	return "", newError("unable to get url for route %s with params %s", route, params)
 }
 

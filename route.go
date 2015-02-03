@@ -31,7 +31,7 @@ type (
 func (app *App) Routes() Routes {
 	allroutes := make(Routes)
 	for _, blueprint := range app.Blueprints() {
-		for _, route := range blueprint.routes {
+		for _, route := range blueprint.Routes {
 			if route.Name != "" {
 				allroutes[route.Name] = route
 			} else {
@@ -67,8 +67,7 @@ func (rt *Route) App() *App {
 }
 
 func (rt *Route) handle(c *Ctx) {
-	c.managers = rt.managers
-	c.events()
+	c.Run(rt.managers...)
 }
 
 func NewRoute(method string, path string, static bool, managers []Manage) *Route {

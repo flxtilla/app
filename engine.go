@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 )
 
@@ -36,6 +37,8 @@ type (
 	}
 
 	engine struct {
+		p                     sync.Pool
+		app                   *App
 		RedirectTrailingSlash bool
 		RedirectFixedPath     bool
 		trees                 map[string]*node
@@ -49,22 +52,19 @@ type (
 	}
 )
 
-func newEngine() *engine {
-	return &engine{RedirectTrailingSlash: true,
-		RedirectFixedPath: true,
-		trees:             newTrees(),
-	}
-}
-
-func newTrees() map[string]*node {
-	trees := make(map[string]*node)
-	defaultStatuses(trees)
-	return trees
+func newEngine(app *App) *engine {
+	e := &engine{app: app, RedirectTrailingSlash: true, RedirectFixedPath: true}
+	e.p.New = func() interface{} { return NewCtx(e) }
+	return e
 }
 
 func (e *engine) manage(method string, path string, m Manage) {
-	if path[0] != '/' {
+	if method != "STATUS" && path[0] != '/' {
 		panic("path must begin with '/'")
+	}
+
+	if e.trees == nil {
+		e.trees = make(map[string]*node)
 	}
 
 	root := e.trees[method]
@@ -576,7 +576,12 @@ func (e *engine) status(code int) *result {
 			return &result{code, manage, params, tsr}
 		}
 	}
-	return &result{code, nil, nil, false}
+	return &result{code, statusManage(code), nil, false}
+}
+
+func (e *engine) statusfunc(c *Ctx, code int) {
+	rslt := e.status(code)
+	rslt.manage(c)
 }
 
 func (e *engine) lookup(method, path string) *result {
@@ -617,6 +622,15 @@ func (e *engine) lookup(method, path string) *result {
 
 		}
 	}
+	for method := range e.trees {
+		if method == method {
+			continue
+		}
+		handle, _, _ := e.trees[method].getValue(path)
+		if handle != nil {
+			return e.status(405)
+		}
+	}
 	return e.status(404)
 }
 
@@ -628,9 +642,29 @@ func rcvr(c *Ctx) {
 	}
 }
 
-func (e *engine) serve(c *Ctx) {
+func (e *engine) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	c, cancel := e.get(rw, req)
+	handle(e, c)
+	cancel(c)
+}
+
+func handle(e *engine, c *Ctx) {
 	defer rcvr(c)
 	rslt := e.lookup(c.Request.Method, c.Request.URL.Path)
 	c.Result(rslt)
 	rslt.manage(c)
+}
+
+func (e *engine) get(rw http.ResponseWriter, req *http.Request) (*Ctx, CancelFunc) {
+	c := e.p.Get().(*Ctx)
+	//c := NewCtx(e)
+	c.Reset(req, rw)
+	c.Request.ParseMultipartForm(e.app.Env.Store["UPLOAD_SIZE"].Int64())
+	c.Start(e.app.SessionManager)
+	cancel := func(c *Ctx) { e.put(c); c.Cancel() }
+	return c, cancel
+}
+
+func (e *engine) put(c *Ctx) {
+	e.p.Put(c)
 }

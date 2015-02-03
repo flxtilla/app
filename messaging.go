@@ -49,9 +49,9 @@ func (m *Messaging) Emit(message string) {
 func (m *Messaging) Send(queue string, message string) {
 	if q, ok := m.Queues[queue]; ok {
 		q(message)
-	} else {
-		m.Emit(message)
+		return
 	}
+	m.Emit(message)
 }
 
 func (m Messaging) defaultqueues() map[string]queue {

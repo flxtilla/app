@@ -36,28 +36,10 @@ type (
 	}
 )
 
-func (e *Env) defaults() {
-	e.Store.addDefault("upload", "size", "10000000")             // bytes
-	e.Store.addDefault("secret", "key", "Flotilla;Secret;Key;1") // weak default value
-	e.Store.addDefault("session", "cookiename", "session")
-	e.Store.addDefault("session", "lifetime", "2629743")
-	e.Store.add("static", "directories", workingStatic)
-	e.Store.add("template", "directories", workingTemplates)
-	//e.Store.add("httpstatus", "html", "true")
-}
-
-func EmptyEnv() *Env {
-	return &Env{Mode: &Modes{true, false, false},
-		Store:         make(Store),
-		extensions:    make(map[string]reflect.Value),
-		tplfunctions:  make(map[string]interface{}),
-		ctxprocessors: make(map[string]reflect.Value),
-	}
-}
-
-func (env *Env) BaseEnv() {
-	env.AddExtensions(builtinextensions)
-	env.defaults()
+func newEnv(a *App) *Env {
+	e := &Env{Mode: defaultModes(), Store: defaultStore()}
+	e.AddExtensions(builtinextensions)
+	return e
 }
 
 func (env *Env) MergeEnv(other *Env) {
@@ -80,6 +62,10 @@ func (env *Env) MergeStore(other Store) {
 	}
 }
 
+func defaultModes() *Modes {
+	return &Modes{true, false, false}
+}
+
 func (env *Env) SetMode(mode string, value bool) error {
 	m := reflect.ValueOf(env.Mode).Elem().FieldByName(mode)
 	if m.CanSet() {
@@ -90,6 +76,9 @@ func (env *Env) SetMode(mode string, value bool) error {
 }
 
 func (env *Env) CtxProcessor(name string, fn interface{}) {
+	if env.ctxprocessors == nil {
+		env.ctxprocessors = make(map[string]reflect.Value)
+	}
 	env.ctxprocessors[name] = valueFunc(fn)
 }
 
@@ -106,6 +95,9 @@ func (env *Env) MergeExtensions(fns map[string]reflect.Value) {
 }
 
 func (env *Env) AddExtension(name string, fn interface{}) error {
+	if env.extensions == nil {
+		env.extensions = make(map[string]reflect.Value)
+	}
 	err := validExtension(fn)
 	if err == nil {
 		env.extensions[name] = valueFunc(fn)
@@ -125,6 +117,9 @@ func (env *Env) AddExtensions(fns map[string]interface{}) error {
 }
 
 func (env *Env) AddTplFunc(name string, fn interface{}) {
+	if env.tplfunctions == nil {
+		env.tplfunctions = make(map[string]interface{})
+	}
 	env.tplfunctions[name] = fn
 }
 
@@ -137,7 +132,7 @@ func (env *Env) AddTplFuncs(fns map[string]interface{}) {
 func (env *Env) defaultsessionconfig() string {
 	secret := env.Store["SECRET_KEY"].Value
 	cookie_name := env.Store["SESSION_COOKIENAME"].Value
-	session_lifetime, _ := env.Store["SESSION_LIFETIME"].Int64()
+	session_lifetime := env.Store["SESSION_LIFETIME"].Int64()
 	prvdrcfg := fmt.Sprintf(`"ProviderConfig":"{\"maxage\": %d,\"cookieName\":\"%s\",\"securityKey\":\"%s\"}"`, session_lifetime, cookie_name, secret)
 	return fmt.Sprintf(`{"cookieName":"%s","enableSetCookie":false,"gclifetime":3600, %s}`, cookie_name, prvdrcfg)
 }

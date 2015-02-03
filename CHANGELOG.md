@@ -2,7 +2,7 @@
 
 ### Flotilla 1.0.0 (tbd)
 
-- ground-up reassembly & rewrite
+- [ground-up reassembly & rewrite from former codebase](https://github.com/fc-thrisp-hurrata-dlm-graveyard/flotilla-defunct)
 - eliminate dependency on [Engine](https://github.com/thrisp/engine)
 - revised Ctx to support [context.Context](https://github.com/golang/net/tree/master/context) interface
 
@@ -21,7 +21,7 @@
 - engine interface & default engine, for future extensible engines
 - essential testing, bugfixes, and refactoring
 
-### Flotilla 0.2.0 (12.2.2014) ~unreleased
+### Flotilla 0.2.0 ~unreleased
 
 - return from 'R' to 'Ctx'
 - flash messaging

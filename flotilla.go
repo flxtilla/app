@@ -3,12 +3,12 @@ package flotilla
 import (
 	"fmt"
 	"net/http"
-	"sync"
 )
 
 type (
+	Manage func(*Ctx)
+
 	App struct {
-		p    sync.Pool
 		name string
 		*engine
 		*Config
@@ -18,21 +18,23 @@ type (
 	}
 )
 
+// Empty returns an App instance with nothing but a name.
+func Empty(name string) *App {
+	return &App{name: name}
+}
+
 // Base returns an intialized App with no configuration.
 func Base(name string) *App {
-	app := &App{name: name,
-		engine:    newEngine(),
-		Env:       EmptyEnv(),
-		Messaging: newMessaging(),
-	}
-	app.p.New = app.newCtx
+	app := Empty(name)
+	app.engine = newEngine(app)
+	app.Env = newEnv(app)
+	app.Messaging = newMessaging()
 	return app
 }
 
 // New returns a Base initialized App with default plus any provided configuration.
 func New(name string, conf ...Configuration) *App {
 	app := Base(name)
-	app.BaseEnv()
 	app.Blueprint = NewBlueprint("/")
 	app.STATIC("static")
 	app.Config = newConfig(conf...)
@@ -44,9 +46,7 @@ func (a *App) Name() string {
 }
 
 func (a *App) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	ctx, cancel := a.getCtx(rw, req)
-	a.engine.serve(ctx)
-	cancel(a, ctx)
+	a.engine.ServeHTTP(rw, req)
 }
 
 func (a *App) Run(addr string) {

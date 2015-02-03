@@ -42,6 +42,17 @@ type (
 	Store map[string]*StoreItem
 )
 
+func defaultStore() Store {
+	s := make(Store)
+	s.addDefault("upload", "size", "10000000")             // bytes
+	s.addDefault("secret", "key", "Flotilla;Secret;Key;1") // weak default value
+	s.addDefault("session", "cookiename", "session")
+	s.addDefault("session", "lifetime", "2629743")
+	s.add("static", "directories", workingStatic)
+	s.add("template", "directories", workingTemplates)
+	return s
+}
+
 func (s Store) LoadConfFile(filename string) (err error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -82,7 +93,7 @@ func (s Store) parse(reader *bufio.Reader, filename string) (err error) {
 		}
 		section, err = s.parseLine(section, line)
 		if err != nil {
-			return newError("[FLOTILLA] configuration parser: syntax error at '%s:%d'.", filename, lineno)
+			return newError("[FLOTILLA] Store configuration parsing: syntax error at '%s:%d'.", filename, lineno)
 		}
 	}
 	return err
@@ -130,39 +141,39 @@ func (s Store) addDefault(section, key, value string) {
 	s[s.newKey(section, key)] = &StoreItem{Value: value, defaultvalue: true}
 }
 
-func (si StoreItem) Bool() (bool, error) {
-	if value, ok := boolString[strings.ToLower(si.Value)]; ok {
-		return value, nil
+func (i StoreItem) Bool() bool {
+	if value, ok := boolString[strings.ToLower(i.Value)]; ok {
+		return value
 	}
-	return false, newError("could not return Bool value from StoreItem")
+	return false
 }
 
-func (si *StoreItem) Float() (float64, error) {
-	if value, err := strconv.ParseFloat(si.Value, 64); err == nil {
-		return value, nil
+func (i *StoreItem) Float() float64 {
+	if value, err := strconv.ParseFloat(i.Value, 64); err == nil {
+		return value
 	}
-	return 0.0, newError("could not return Float value from StoreItem")
+	return 0.0
 }
 
-func (si *StoreItem) Int() (int, error) {
-	if value, err := strconv.Atoi(si.Value); err == nil {
-		return value, nil
+func (i *StoreItem) Int() int {
+	if value, err := strconv.Atoi(i.Value); err == nil {
+		return value
 	}
-	return 0, newError("could not return Int value from StoreItem")
+	return 0
 }
 
-func (si *StoreItem) Int64() (int64, error) {
-	if value, err := strconv.ParseInt(si.Value, 10, 64); err == nil {
-		return value, nil
+func (i *StoreItem) Int64() int64 {
+	if value, err := strconv.ParseInt(i.Value, 10, 64); err == nil {
+		return value
 	}
-	return 0, newError("could not return Int64 value from StoreItem")
+	return -1
 }
 
-func (si *StoreItem) List(li ...string) []string {
-	list := strings.Split(si.Value, ",")
-	for _, item := range li {
+func (i *StoreItem) List(l ...string) []string {
+	list := strings.Split(i.Value, ",")
+	for _, item := range l {
 		list = doAdd(item, list)
 	}
-	si.Value = strings.Join(list, ",")
-	return strings.Split(si.Value, ",")
+	i.Value = strings.Join(list, ",")
+	return strings.Split(i.Value, ",")
 }

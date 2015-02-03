@@ -1,6 +1,9 @@
 package flotilla
 
-import "path/filepath"
+import (
+	"path/filepath"
+	"strconv"
+)
 
 type (
 	setupstate struct {
@@ -13,8 +16,8 @@ type (
 		*setupstate
 		app      *App
 		children []*Blueprint
-		routes   Routes
 		Prefix   string
+		Routes
 		Managers []Manage
 	}
 )
@@ -42,7 +45,7 @@ func (app *App) RegisterBlueprints(blueprints ...*Blueprint) {
 	for _, blueprint := range blueprints {
 		if existing, ok := app.existingBlueprint(blueprint.Prefix); ok {
 			existing.Use(blueprint.Managers...)
-			app.MergeRoutes(existing, blueprint.routes)
+			app.MergeRoutes(existing, blueprint.Routes)
 		} else {
 			app.children = append(app.children, blueprint)
 			blueprint.Register(app)
@@ -97,7 +100,7 @@ func (b *Blueprint) pathFor(path string) string {
 func NewBlueprint(prefix string) *Blueprint {
 	return &Blueprint{setupstate: &setupstate{},
 		Prefix: prefix,
-		routes: make(Routes),
+		Routes: make(Routes),
 	}
 }
 
@@ -171,9 +174,9 @@ func (b *Blueprint) UseAt(index int, managers ...Manage) {
 
 func (b *Blueprint) add(r *Route) {
 	if r.Name != "" {
-		b.routes[r.Name] = r
+		b.Routes[r.Name] = r
 	} else {
-		b.routes[r.Named()] = r
+		b.Routes[r.Named()] = r
 	}
 }
 
@@ -241,6 +244,7 @@ func (b *Blueprint) STATIC(path string) {
 	b.Manage(NewRoute("GET", path, true, []Manage{handleStatic}))
 }
 
-func (b *Blueprint) STATUS(path string, manager Manage) {
-	b.app.engine.manage("STATUS", path, manager)
+func (b *Blueprint) STATUS(code int, managers ...Manage) {
+	s := statusManage(code, managers...)
+	b.push(func() { b.app.engine.manage("STATUS", strconv.Itoa(code), s) }, nil)
 }

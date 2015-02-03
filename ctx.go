@@ -12,23 +12,21 @@ import (
 )
 
 type (
-	Manage func(*Ctx)
-
 	canceler interface {
 		cancel(removeFromParent bool, err error)
 		Done() <-chan struct{}
 	}
 
 	context struct {
-		mu       sync.Mutex
 		parent   *context
+		mu       sync.Mutex
 		children map[canceler]bool
 		done     chan struct{}
 		err      error
 		value    *Ctx
 	}
 
-	CancelFunc func(*App, *Ctx)
+	CancelFunc Manage
 
 	handlers struct {
 		index    int8
@@ -47,14 +45,13 @@ type (
 	}
 
 	Ctx struct {
-		lookup     *result
-		extensions map[string]reflect.Value
+		App        *App
 		rw         responseWriter
 		RW         ResponseWriter
 		Request    *http.Request
 		Session    session.SessionStore
+		extensions map[string]reflect.Value
 		Data       map[string]interface{}
-		App        *App
 		Errors     errorMsgs
 		*context
 		*handlers
@@ -65,59 +62,6 @@ type (
 var (
 	Canceled = errors.New("flotilla.Ctx canceled")
 )
-
-func (a *App) newCtx() interface{} {
-	ctx := &Ctx{
-		handlers:   defaulthandlers(),
-		App:        a,
-		extensions: a.extensions,
-	}
-	ctx.RW = &ctx.rw
-	return ctx
-}
-
-func (a *App) getCtx(rw http.ResponseWriter, req *http.Request) (*Ctx, CancelFunc) {
-	ctx := a.getctx(rw, req)
-	cancel := func(app *App, c *Ctx) { c.context.cancel(true, Canceled); app.putCtx(c) }
-	return ctx, cancel
-}
-
-func (a *App) getctx(rw http.ResponseWriter, req *http.Request) *Ctx {
-	ctx := a.p.Get().(*Ctx)
-	ctx.context = &context{done: make(chan struct{}), value: ctx}
-	ctx.recorder = NewRecorder()
-	if mm, err := a.Env.Store["UPLOAD_SIZE"].Int64(); err == nil {
-		req.ParseMultipartForm(mm)
-	}
-	ctx.Request = req
-	ctx.rw.reset(rw)
-	ctx.Start()
-	return ctx
-}
-
-func (a *App) putCtx(ctx *Ctx) {
-	ctx.PostProcess(ctx.Request, ctx.RW)
-	if !a.Mode.Production {
-		a.Send("out", ctx.LogFmt())
-	}
-	ctx.handlers = defaulthandlers()
-	ctx.Session = nil
-	ctx.Data = nil
-	ctx.managers = nil
-	ctx.deferred = nil
-	ctx.recorder = nil
-	ctx.Errors = nil
-	ctx.context = nil
-	a.p.Put(ctx)
-}
-
-func Copy(c *Ctx) *Ctx {
-	child := &context{parent: c.context, done: make(chan struct{}), value: c}
-	propagateCancel(c.context, child)
-	var rcopy Ctx = *c
-	rcopy.context = child
-	return &rcopy
-}
 
 func propagateCancel(p *context, child canceler) {
 	if p.Done() == nil {
@@ -230,15 +174,76 @@ func (r *recorder) LogFmt() string {
 		r.path)
 }
 
-func (ctx *Ctx) Result(r *result) {
-	ctx.lookup = r
+func NewCtx(e *engine) *Ctx {
+	c := &Ctx{handlers: defaulthandlers()}
+	c.App = e.app
+	c.extensions = e.app.extensions
+	c.RW = &c.rw
+	return c
+}
+
+func (c *Ctx) Reset(req *http.Request, rw http.ResponseWriter) {
+	c.Request = req
+	c.rw.reset(rw)
+	c.context = &context{done: make(chan struct{}), value: c}
+	c.handlers = defaulthandlers()
+	c.recorder = NewRecorder()
+}
+
+func (c *Ctx) Result(r *result) {
 	for _, p := range r.params {
-		ctx.Set(p.Key, p.Value)
+		c.Set(p.Key, p.Value)
 	}
 }
 
-func (ctx *Ctx) Start() {
-	ctx.Session, _ = ctx.App.SessionManager.SessionStart(ctx.RW, ctx.Request)
+func (c *Ctx) Start(s *session.Manager) {
+	c.Session, _ = s.SessionStart(c.RW, c.Request)
+}
+
+func (c *Ctx) Copy() *Ctx {
+	child := &context{parent: c.context, done: make(chan struct{}), value: c}
+	propagateCancel(c.context, child)
+	var rcopy Ctx = *c
+	rcopy.context = child
+	return &rcopy
+}
+
+func (ctx *Ctx) Run(managers ...Manage) {
+	ctx.managers = managers
+	ctx.Push(func(c *Ctx) { c.Release() })
+	ctx.Next()
+	for _, fn := range ctx.deferred {
+		fn(ctx)
+	}
+}
+
+func (ctx *Ctx) ReRun(managers ...Manage) {
+	if ctx.index != -1 {
+		ctx.index = -1
+	}
+	ctx.Run(managers...)
+}
+
+func (ctx *Ctx) Next() {
+	ctx.index++
+	s := int8(len(ctx.managers))
+	for ; ctx.index < s; ctx.index++ {
+		ctx.managers[ctx.index](ctx)
+	}
+}
+
+func (c *Ctx) Cancel() {
+	c.context.cancel(true, Canceled)
+	c.recorder.PostProcess(c.Request, c.RW)
+	if !c.App.Mode.Production {
+		c.App.Send("out", c.LogFmt())
+	}
+	c.handlers = defaulthandlers()
+	c.Session = nil
+	c.Data = nil
+	c.recorder = nil
+	c.Errors = nil
+	c.context = nil
 }
 
 func (ctx *Ctx) Release() {
@@ -249,22 +254,6 @@ func (ctx *Ctx) Release() {
 
 func (ctx *Ctx) Call(name string, args ...interface{}) (interface{}, error) {
 	return call(ctx.extensions[name], args...)
-}
-
-func (ctx *Ctx) events() {
-	ctx.Push(func(c *Ctx) { c.Release() })
-	ctx.Next()
-	for _, fn := range ctx.deferred {
-		fn(ctx)
-	}
-}
-
-func (ctx *Ctx) Next() {
-	ctx.index++
-	s := int8(len(ctx.managers))
-	for ; ctx.index < s; ctx.index++ {
-		ctx.managers[ctx.index](ctx)
-	}
 }
 
 func (ctx *Ctx) Push(fn Manage) {

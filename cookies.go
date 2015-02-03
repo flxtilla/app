@@ -17,20 +17,20 @@ var (
 	cValueSanitizer = strings.NewReplacer("\n", " ", "\r", " ", ";", " ")
 )
 
-func cookies(ctx *Ctx) map[string]*http.Cookie {
+func cookies(c *Ctx) map[string]*http.Cookie {
 	ret := make(map[string]*http.Cookie)
-	for _, cookie := range ctx.Request.Cookies() {
+	for _, cookie := range c.Request.Cookies() {
 		ret[cookie.Name] = cookie
 	}
 	return ret
 }
 
-func (ctx *Ctx) Cookies() map[string]*http.Cookie {
-	ret, _ := ctx.Call("cookies", ctx)
+func (c *Ctx) Cookies() map[string]*http.Cookie {
+	ret, _ := c.Call("cookies", c)
 	return ret.(map[string]*http.Cookie)
 }
 
-func unpackcookie(ctx *Ctx, cookie *http.Cookie) string {
+func unpackcookie(c *Ctx, cookie *http.Cookie) string {
 	val := cookie.Value
 	if val == "" {
 		return val
@@ -46,7 +46,7 @@ func unpackcookie(ctx *Ctx, cookie *http.Cookie) string {
 	// timestamp := parts[1]
 	sig := parts[2]
 
-	if secret, ok := ctx.App.Env.Store["SECRET_KEY"]; ok {
+	if secret, ok := c.App.Env.Store["SECRET_KEY"]; ok {
 		h := hmac.New(sha1.New, []byte(secret.Value))
 
 		if fmt.Sprintf("%02x", h.Sum(nil)) != sig {
@@ -59,23 +59,23 @@ func unpackcookie(ctx *Ctx, cookie *http.Cookie) string {
 	return "cookie value could not be read and/or unpacked"
 }
 
-func (ctx *Ctx) ReadCookies() map[string]string {
+func (c *Ctx) ReadCookies() map[string]string {
 	ret := make(map[string]string)
-	cks := cookies(ctx)
+	cks := cookies(c)
 	for k, v := range cks {
-		ret[k] = unpackcookie(ctx, v)
+		ret[k] = unpackcookie(c, v)
 	}
 	return ret
 }
 
-func cookie(ctx *Ctx, secure bool, name string, value string, opts []interface{}) error {
+func cookie(c *Ctx, secure bool, name string, value string, opts []interface{}) error {
 	if secure {
-		if secret, ok := ctx.App.Env.Store["SECRET_KEY"]; ok {
+		if secret, ok := c.App.Env.Store["SECRET_KEY"]; ok {
 			value = securevalue(secret.Value, value)
 		}
 	}
 	cke := basiccookie(name, value, opts...)
-	ctx.ModifyHeader("add", []string{"Set-Cookie", cke})
+	c.ModifyHeader("add", []string{"Set-Cookie", cke})
 	return nil
 }
 
@@ -134,12 +134,12 @@ func basiccookie(name string, value string, opts ...interface{}) string {
 	return b.String()
 }
 
-func (ctx *Ctx) SecureCookie(name string, value string, opts ...interface{}) error {
-	_, err := ctx.Call("cookie", ctx, true, name, value, opts)
+func (c *Ctx) SecureCookie(name string, value string, opts ...interface{}) error {
+	_, err := c.Call("cookie", c, true, name, value, opts)
 	return err
 }
 
-func (ctx *Ctx) Cookie(name string, value string, opts ...interface{}) error {
-	_, err := ctx.Call("cookie", ctx, false, name, value, opts)
+func (c *Ctx) Cookie(name string, value string, opts ...interface{}) error {
+	_, err := c.Call("cookie", c, false, name, value, opts)
 	return err
 }

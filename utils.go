@@ -276,3 +276,10 @@ func bufApp(buf *[]byte, s string, w int, c byte) {
 	}
 	(*buf)[w] = c
 }
+
+func validExtension(fn interface{}) error {
+	if goodFunc(valueFunc(fn).Type()) {
+		return nil
+	}
+	return newError("function %q is not a valid Flotilla Ctx function; must be a function and return must be 1 value, or 1 value and 1 error value", fn)
+}

@@ -21,17 +21,16 @@ func templateData(any interface{}) TData {
 	}
 }
 
-func TemplateData(ctx *Ctx, any interface{}) TData {
-	ctxcopy := Copy(ctx)
+func TemplateData(c *Ctx, any interface{}) TData {
 	td := templateData(any)
-	td["Ctx"] = ctxcopy
-	td["Request"] = ctx.Request
-	td["Session"] = ctx.Session
-	for k, v := range ctx.Data {
+	td["Ctx"] = c.Copy()
+	td["Request"] = c.Request
+	td["Session"] = c.Session
+	for k, v := range c.Data {
 		td[k] = v
 	}
-	td["Flash"] = allflashmessages(ctx)
-	td.contextProcessors(ctxcopy)
+	td["Flash"] = c.AllFlashMessages()
+	td.contextProcessors(c)
 	return td
 }
 
@@ -104,9 +103,9 @@ func (t TData) ctxPrc(name string) (reflect.Value, bool) {
 	return reflect.Value{}, false
 }
 
-func (t TData) contextProcessor(fn reflect.Value, ctxcopy *Ctx) reflect.Value {
+func (t TData) contextProcessor(fn reflect.Value, c *Ctx) reflect.Value {
 	newfn := func() (interface{}, error) {
-		return call(fn, ctxcopy)
+		return call(fn, c)
 	}
 	return valueFunc(newfn)
 }
