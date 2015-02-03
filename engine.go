@@ -657,7 +657,6 @@ func handle(e *engine, c *Ctx) {
 
 func (e *engine) get(rw http.ResponseWriter, req *http.Request) (*Ctx, CancelFunc) {
 	c := e.p.Get().(*Ctx)
-	//c := NewCtx(e)
 	c.Reset(req, rw)
 	c.Request.ParseMultipartForm(e.app.Env.Store["UPLOAD_SIZE"].Int64())
 	c.Start(e.app.SessionManager)

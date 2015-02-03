@@ -26,7 +26,7 @@ type (
 		value    *Ctx
 	}
 
-	CancelFunc Manage
+	CancelFunc func(*Ctx)
 
 	handlers struct {
 		index    int8
