@@ -25,9 +25,18 @@ func cookies(c *Ctx) map[string]*http.Cookie {
 	return ret
 }
 
-func (c *Ctx) Cookies() map[string]*http.Cookie {
+func Cookies(c *Ctx) map[string]*http.Cookie {
 	ret, _ := c.Call("cookies", c)
 	return ret.(map[string]*http.Cookie)
+}
+
+func ReadCookies(c *Ctx) map[string]string {
+	ret := make(map[string]string)
+	cks := cookies(c)
+	for k, v := range cks {
+		ret[k] = unpackcookie(c, v)
+	}
+	return ret
 }
 
 func unpackcookie(c *Ctx, cookie *http.Cookie) string {
@@ -46,7 +55,7 @@ func unpackcookie(c *Ctx, cookie *http.Cookie) string {
 	// timestamp := parts[1]
 	sig := parts[2]
 
-	if secret, ok := c.App.Env.Store["SECRET_KEY"]; ok {
+	if secret, ok := CheckStore(c, "SECRET_KEY"); ok {
 		h := hmac.New(sha1.New, []byte(secret.Value))
 
 		if fmt.Sprintf("%02x", h.Sum(nil)) != sig {
@@ -59,24 +68,20 @@ func unpackcookie(c *Ctx, cookie *http.Cookie) string {
 	return "cookie value could not be read and/or unpacked"
 }
 
-func (c *Ctx) ReadCookies() map[string]string {
-	ret := make(map[string]string)
-	cks := cookies(c)
-	for k, v := range cks {
-		ret[k] = unpackcookie(c, v)
-	}
-	return ret
-}
-
 func cookie(c *Ctx, secure bool, name string, value string, opts []interface{}) error {
 	if secure {
-		if secret, ok := c.App.Env.Store["SECRET_KEY"]; ok {
+		if secret, ok := CheckStore(c, "SECRET_KEY"); ok {
 			value = securevalue(secret.Value, value)
 		}
 	}
 	cke := basiccookie(name, value, opts...)
-	c.ModifyHeader("add", []string{"Set-Cookie", cke})
+	headermodify(c, "add", []string{"Set-Cookie", cke})
 	return nil
+}
+
+func Cookie(c *Ctx, name string, value string, opts ...interface{}) error {
+	_, err := c.Call("cookie", c, false, name, value, opts)
+	return err
 }
 
 func securevalue(secret string, value string) string {
@@ -134,12 +139,7 @@ func basiccookie(name string, value string, opts ...interface{}) string {
 	return b.String()
 }
 
-func (c *Ctx) SecureCookie(name string, value string, opts ...interface{}) error {
+func SecureCookie(c *Ctx, name string, value string, opts ...interface{}) error {
 	_, err := c.Call("cookie", c, true, name, value, opts)
-	return err
-}
-
-func (c *Ctx) Cookie(name string, value string, opts ...interface{}) error {
-	_, err := c.Call("cookie", c, false, name, value, opts)
 	return err
 }

@@ -4,30 +4,58 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
-)
-
-var (
-	builtinextensions = map[string]interface{}{
-		"abort":            abort,
-		"allflashmessages": allflashmessages,
-		"cookie":           cookie,
-		"cookies":          cookies,
-		"files":            files,
-		"flash":            flash,
-		"flashmessages":    flashmessages,
-		"form":             form,
-		"redirect":         redirect,
-		"rendertemplate":   rendertemplate,
-		"serveplain":       serveplain,
-		"servefile":        servefile,
-		"status":           status,
-		"urlfor":           urlfor,
-	}
+	"reflect"
 )
 
 type (
+	Extensor interface {
+		Call(string, ...interface{}) (interface{}, error)
+	}
+
+	extensor struct {
+		ext map[string]reflect.Value
+		ctx *Ctx
+	}
+
 	RequestFiles map[string][]*multipart.FileHeader
 )
+
+func newextensor(e map[string]reflect.Value, c *Ctx) Extensor {
+	return &extensor{ext: e, ctx: c}
+}
+
+func (e *extensor) Call(name string, args ...interface{}) (interface{}, error) {
+	var ctxargs []interface{}
+	ctxargs = append(ctxargs, e.ctx)
+	ctxargs = append(ctxargs, args...)
+	return call(e.ext[name], ctxargs...)
+}
+
+func BuiltInExtensions(a *App) map[string]interface{} {
+	b := map[string]interface{}{
+		"abort":          abort,
+		"cookie":         cookie,
+		"cookies":        cookies,
+		"env":            envquery(a),
+		"files":          files,
+		"flash":          flash,
+		"flashes":        flashes,
+		"flashed":        flashed,
+		"form":           form,
+		"get":            getdata,
+		"headerwrite":    headerwrite,
+		"headermodify":   headermodify,
+		"redirect":       redirect,
+		"rendertemplate": rendertemplatefunc(a),
+		"serveplain":     serveplain,
+		"servefile":      servefile,
+		"set":            setdata,
+		"status":         a.engine.statusfunc,
+		"store":          storequery(a),
+		"urlfor":         urlforfunc(a),
+	}
+	return b
+}
 
 func abort(c *Ctx, code int) error {
 	if code >= 0 {
@@ -36,23 +64,9 @@ func abort(c *Ctx, code int) error {
 	return nil
 }
 
-func (ctx *Ctx) Abort(code int) {
-	ctx.Call("abort", ctx, code)
-}
-
-func status(c *Ctx, code int) error {
-	rslt := c.App.engine.status(code)
-	rslt.manage(c)
-	return nil
-}
-
-func (ctx *Ctx) Status(code int) {
-	ctx.Call("status", ctx, code)
-}
-
-func redirect(ctx *Ctx, code int, location string) error {
+func redirect(c *Ctx, code int, location string) error {
 	if code >= 300 && code <= 308 {
-		ctx.Push(func(c *Ctx) {
+		c.Push(func(c *Ctx) {
 			http.Redirect(c.RW, c.Request, location, code)
 			c.RW.WriteHeaderNow()
 		})
@@ -62,96 +76,64 @@ func redirect(ctx *Ctx, code int, location string) error {
 	}
 }
 
-func (ctx *Ctx) Redirect(code int, location string) {
-	ctx.Call("redirect", ctx, code, location)
-}
-
-func serveplain(ctx *Ctx, code int, data []byte) error {
-	ctx.Push(func(c *Ctx) {
-		c.WriteToHeader(code, []string{"Content-Type", "text/plain"})
+func serveplain(c *Ctx, code int, data []byte) error {
+	c.Push(func(c *Ctx) {
+		headerwrite(c, code, []string{"Content-Type", "text/plain"})
 		c.RW.Write(data)
 	})
 	return nil
 }
 
-func (ctx *Ctx) ServePlain(code int, data []byte) {
-	ctx.Call("serveplain", ctx, code, data)
-}
-
-func servefile(ctx *Ctx, f http.File) error {
+func servefile(c *Ctx, f http.File) error {
 	fi, err := f.Stat()
 	if err == nil {
-		http.ServeContent(ctx.RW, ctx.Request, fi.Name(), fi.ModTime(), f)
+		http.ServeContent(c.RW, c.Request, fi.Name(), fi.ModTime(), f)
 	}
 	return err
 }
 
-func (ctx *Ctx) ServeFile(f http.File) {
-	ctx.Call("servefile", ctx, f)
-}
-
-func rendertemplate(ctx *Ctx, name string, data interface{}) error {
-	//td := TemplateData(ctx, data)
-	//ctx.Push(func(c *Ctx) {
-	//	c.App.Templator.Render(c.RW, name, td)
-	//})
-	return nil
-}
-
-func (ctx *Ctx) RenderTemplate(name string, data interface{}) {
-	ctx.Call("rendertemplate", ctx, name, data)
-}
-
-func urlfor(ctx *Ctx, route string, external bool, params []string) (string, error) {
-	//if route, ok := ctx.App.Routes()[route]; ok {
-	//	routeurl, _ := route.Url(params...)
-	//	if routeurl != nil {
-	//		if external {
-	//			routeurl.Host = ctx.Request.Host
-	//		}
-	//		return routeurl.String(), nil
-	//	}
-	//}
-	return "", newError("unable to get url for route %s with params %s", route, params)
-}
-
-func (ctx *Ctx) UrlRelative(route string, params ...string) string {
-	ret, err := ctx.Call("urlfor", ctx, route, false, params)
-	if err != nil {
-		return err.Error()
+func rendertemplatefunc(a *App) func(*Ctx, string, interface{}) error {
+	return func(c *Ctx, name string, data interface{}) error {
+		td := NewTemplateData(c, data)
+		c.Push(func(pc *Ctx) {
+			a.Templator.Render(pc.RW, name, td)
+		})
+		return nil
 	}
-	return ret.(string)
 }
 
-func (ctx *Ctx) UrlExternal(route string, params ...string) string {
-	ret, err := ctx.Call("urlfor", ctx, route, true, params)
-	if err != nil {
-		return err.Error()
+func urlforfunc(a *App) func(*Ctx, string, bool, []string) (string, error) {
+	return func(c *Ctx, route string, external bool, params []string) (string, error) {
+		if route, ok := a.Routes()[route]; ok {
+			routeurl, _ := route.Url(params...)
+			if routeurl != nil {
+				if external {
+					routeurl.Host = c.Request.Host
+				}
+				return routeurl.String(), nil
+			}
+		}
+		return "", newError("unable to get url for route %s with params %s", route, params)
 	}
-	return ret.(string)
 }
 
-func flash(ctx *Ctx, category string, message string) error {
-	if fl := ctx.Session.Get("_flashes"); fl != nil {
+func flash(c *Ctx, category string, message string) error {
+	if fl := c.Session.Get("_flashes"); fl != nil {
 		if fls, ok := fl.(map[string]string); ok {
 			fls[category] = message
-			ctx.Session.Set("_flashes", fls)
+			c.Session.Set("_flashes", fls)
 		}
 	} else {
 		fl := make(map[string]string)
 		fl[category] = message
-		ctx.Session.Set("_flashes", fl)
+		c.Session.Set("_flashes", fl)
 	}
 	return nil
 }
 
-func (ctx *Ctx) Flash(category string, message string) {
-	ctx.Call("flash", ctx, category, message)
-}
-
-func flashmessages(ctx *Ctx, categories []string) []string {
+func flashes(c *Ctx, categories []string) []string {
 	var ret []string
-	if fl := ctx.Session.Get("_flashes"); fl != nil {
+	if fl := c.Session.Get("_flashes"); fl != nil {
 		if fls, ok := fl.(map[string]string); ok {
 			for k, v := range fls {
 				if existsIn(k, categories) {
@@ -159,50 +141,92 @@ func flashmessages(ctx *Ctx, categories []string) []string {
 					delete(fls, k)
 				}
 			}
-			ctx.Session.Set("_flashes", fls)
+			c.Session.Set("_flashes", fls)
 		}
 	}
 	return ret
 }
 
-func (ctx *Ctx) FlashMessages(categories ...string) []string {
-	ret, _ := ctx.Call("flashmessages", ctx, categories)
-	return ret.([]string)
-}
-
-func allflashmessages(ctx *Ctx) map[string]string {
+func flashed(c *Ctx) map[string]string {
 	var ret map[string]string
-	if fl := ctx.Session.Get("_flashes"); fl != nil {
+	if fl := c.Session.Get("_flashes"); fl != nil {
 		if fls, ok := fl.(map[string]string); ok {
 			ret = fls
 		}
 	}
-	ctx.Session.Delete("_flashes")
+	c.Session.Delete("_flashes")
 	return ret
 }
 
-func (ctx *Ctx) AllFlashMessages() map[string]string {
-	ret, _ := ctx.Call("allflashmessages", ctx)
-	return ret.(map[string]string)
+func form(c *Ctx) url.Values {
+	return c.Request.Form
 }
 
-func form(ctx *Ctx) url.Values {
-	return ctx.Request.Form
-}
-
-func (ctx *Ctx) Form() (url.Values, error) {
-	ret, err := ctx.Call("form", ctx)
-	return ret.(url.Values), err
-}
-
-func files(ctx *Ctx) RequestFiles {
-	if ctx.Request.MultipartForm.File != nil {
-		return ctx.Request.MultipartForm.File
+func files(c *Ctx) RequestFiles {
+	if c.Request.MultipartForm.File != nil {
+		return c.Request.MultipartForm.File
 	}
 	return nil
 }
 
-func (ctx *Ctx) Files() (RequestFiles, error) {
-	ret, err := ctx.Call("files", ctx)
-	return ret.(RequestFiles), err
+func setdata(c *Ctx, key string, item interface{}) error {
+	if c.Data == nil {
+		c.Data = make(map[string]interface{})
+	}
+	c.Data[key] = item
+	return nil
+}
+
+func getdata(c *Ctx, key string) (interface{}, error) {
+	item, ok := c.Data[key]
+	if ok {
+		return item, nil
+	}
+	return nil, newError("Key %s does not exist.", key)
+}
+
+func headerwrite(c *Ctx, code int, values ...[]string) error {
+	if code >= 0 {
+		c.RW.WriteHeader(code)
+	}
+	headermodify(c, "set", values...)
+	return nil
+}
+
+func headermodify(c *Ctx, action string, values ...[]string) error {
+	switch action {
+	case "set":
+		for _, v := range values {
+			c.RW.Header().Set(v[0], v[1])
+		}
+	default:
+		for _, v := range values {
+			c.RW.Header().Add(v[0], v[1])
+		}
+	}
+	return nil
+}
+
+func envquery(a *App) func(*Ctx, string) interface{} {
+	return func(c *Ctx, item string) interface{} {
+		switch item {
+		case "store":
+			return a.Env.Store
+		case "extensions":
+			return a.Env.extensions
+		case "processors":
+			return a.Env.ctxprocessors
+		default:
+			return nil
+		}
+	}
+}
+
+func storequery(a *App) func(*Ctx, string) (*StoreItem, error) {
+	return func(c *Ctx, key string) (*StoreItem, error) {
+		if item, ok := a.Env.Store[key]; ok {
+			return item, nil
+		}
+		return nil, newError("Could not find StoreItem")
+	}
 }

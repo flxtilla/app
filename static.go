@@ -1,6 +1,7 @@
 package flotilla
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 )
@@ -8,18 +9,26 @@ import (
 type (
 	Staticor interface {
 		StaticDirs(...string) []string
-		Exists(string, *Ctx) bool
+		Exists(*Ctx, string) bool
+		Handle(*Ctx)
 	}
 
 	staticor struct {
+		app        *App
 		staticDirs []string
 	}
 )
 
-func (env *Env) StaticorInit() {
-	if env.Staticor == nil {
-		env.Staticor = NewStaticor(env)
+func StaticorInit(a *App) {
+	if a.Env.Staticor == nil {
+		a.Env.Staticor = NewStaticor(a)
 	}
+}
+
+func NewStaticor(a *App) *staticor {
+	s := &staticor{app: a}
+	s.StaticDirs(s.app.Env.Store["STATIC_DIRECTORIES"].List()...)
+	return s
 }
 
 func (env *Env) StaticDirs(dirs ...string) []string {
@@ -30,12 +39,6 @@ func (env *Env) StaticDirs(dirs ...string) []string {
 	return storedirs
 }
 
-func NewStaticor(env *Env) *staticor {
-	s := &staticor{}
-	s.StaticDirs(env.Store["STATIC_DIRECTORIES"].List()...)
-	return s
-}
-
 func (s *staticor) StaticDirs(dirs ...string) []string {
 	for _, dir := range dirs {
 		s.staticDirs = doAdd(dir, s.staticDirs)
@@ -43,13 +46,13 @@ func (s *staticor) StaticDirs(dirs ...string) []string {
 	return s.staticDirs
 }
 
-func appStaticFile(requested string, ctx *Ctx) bool {
+func (s *staticor) appStaticFile(requested string, c *Ctx) bool {
 	exists := false
-	for _, dir := range ctx.App.StaticDirs() {
+	for _, dir := range s.app.StaticDirs() {
 		filepath.Walk(dir, func(path string, _ os.FileInfo, _ error) (err error) {
 			if filepath.Base(path) == requested {
 				f, _ := os.Open(path)
-				ctx.ServeFile(f)
+				servestatic(c, f)
 				exists = true
 			}
 			return err
@@ -58,30 +61,37 @@ func appStaticFile(requested string, ctx *Ctx) bool {
 	return exists
 }
 
-func appAssetFile(requested string, ctx *Ctx) bool {
+func (s *staticor) appAssetFile(requested string, c *Ctx) bool {
 	exists := false
-	f, err := ctx.App.Assets.Get(requested)
+	f, err := s.app.Assets.Get(requested)
 	if err == nil {
-		ctx.ServeFile(f)
+		servestatic(c, f)
 		exists = true
 	}
 	return exists
 }
 
-func (s *staticor) Exists(requested string, ctx *Ctx) bool {
-	exists := appStaticFile(requested, ctx)
+func (s *staticor) Exists(c *Ctx, requested string) bool {
+	exists := s.appStaticFile(requested, c)
 	if !exists {
-		exists = appAssetFile(requested, ctx)
+		exists = s.appAssetFile(requested, c)
 	}
 	return exists
 }
 
-func handleStatic(ctx *Ctx) {
-	requested := filepath.Base(ctx.Request.URL.Path)
-	exists := ctx.App.Staticor.Exists(requested, ctx)
-	if !exists {
-		ctx.Abort(404)
+func (s *staticor) Handle(c *Ctx) {
+	requested := filepath.Base(c.Request.URL.Path)
+	if !s.Exists(c, requested) {
+		abortstatic(c)
 	} else {
-		ctx.RW.WriteHeaderNow()
+		c.RW.WriteHeaderNow()
 	}
+}
+
+func abortstatic(c *Ctx) {
+	c.Call("abort", 404)
+}
+
+func servestatic(c *Ctx, f http.File) {
+	c.Call("servefile", f)
 }

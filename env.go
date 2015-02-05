@@ -38,7 +38,7 @@ type (
 
 func newEnv(a *App) *Env {
 	e := &Env{Mode: defaultModes(), Store: defaultStore()}
-	e.AddExtensions(builtinextensions)
+	e.AddExtensions(BuiltInExtensions(a))
 	return e
 }
 

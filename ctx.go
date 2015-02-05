@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"reflect"
 	"sync"
 	"time"
 
@@ -17,6 +16,8 @@ type (
 		Done() <-chan struct{}
 	}
 
+	CancelFunc func(*Ctx)
+
 	context struct {
 		parent   *context
 		mu       sync.Mutex
@@ -25,8 +26,6 @@ type (
 		err      error
 		value    *Ctx
 	}
-
-	CancelFunc func(*Ctx)
 
 	handlers struct {
 		index    int8
@@ -45,17 +44,16 @@ type (
 	}
 
 	Ctx struct {
-		App        *App
-		rw         responseWriter
-		RW         ResponseWriter
-		Request    *http.Request
-		Session    session.SessionStore
-		extensions map[string]reflect.Value
-		Data       map[string]interface{}
-		Errors     errorMsgs
 		*context
 		*handlers
 		*recorder
+		Extensor
+		rw      responseWriter
+		RW      ResponseWriter
+		Request *http.Request
+		Session session.SessionStore
+		Data    map[string]interface{}
+		Errors  errorMsgs
 	}
 )
 
@@ -174,10 +172,9 @@ func (r *recorder) LogFmt() string {
 		r.path)
 }
 
-func NewCtx(e *engine) *Ctx {
+func NewCtx(a *App) *Ctx {
 	c := &Ctx{handlers: defaulthandlers()}
-	c.App = e.app
-	c.extensions = e.app.extensions
+	c.Extensor = newextensor(a.extensions, c)
 	c.RW = &c.rw
 	return c
 }
@@ -192,7 +189,7 @@ func (c *Ctx) Reset(req *http.Request, rw http.ResponseWriter) {
 
 func (c *Ctx) Result(r *result) {
 	for _, p := range r.params {
-		c.Set(p.Key, p.Value)
+		c.Call("set", p.Key, p.Value)
 	}
 }
 
@@ -232,18 +229,8 @@ func (ctx *Ctx) Next() {
 	}
 }
 
-func (c *Ctx) Cancel() {
-	c.context.cancel(true, Canceled)
-	c.recorder.PostProcess(c.Request, c.RW)
-	if !c.App.Mode.Production {
-		c.App.Send("out", c.LogFmt())
-	}
-	c.handlers = defaulthandlers()
-	c.Session = nil
-	c.Data = nil
-	c.recorder = nil
-	c.Errors = nil
-	c.context = nil
+func (ctx *Ctx) Push(fn Manage) {
+	ctx.deferred = append(ctx.deferred, fn)
 }
 
 func (ctx *Ctx) Release() {
@@ -252,45 +239,23 @@ func (ctx *Ctx) Release() {
 	}
 }
 
-func (ctx *Ctx) Call(name string, args ...interface{}) (interface{}, error) {
-	return call(ctx.extensions[name], args...)
+func (c *Ctx) Cancel() {
+	c.context.cancel(true, Canceled)
+	c.recorder.PostProcess(c.Request, c.RW)
+	//if !c.App.Mode.Production {
+	//	c.App.Send("out", c.LogFmt())
+	//}
+	c.handlers = defaulthandlers()
+	c.Session = nil
+	c.Data = nil
+	c.recorder = nil
+	c.Errors = nil
+	c.context = nil
 }
 
-func (ctx *Ctx) Push(fn Manage) {
-	ctx.deferred = append(ctx.deferred, fn)
-}
-
-func (ctx *Ctx) Set(key string, item interface{}) {
-	if ctx.Data == nil {
-		ctx.Data = make(map[string]interface{})
+func CheckStore(c *Ctx, key string) (*StoreItem, bool) {
+	if item, err := c.Call("store", c, key); err == nil {
+		return item.(*StoreItem), true
 	}
-	ctx.Data[key] = item
-}
-
-func (ctx *Ctx) Get(key string) (interface{}, error) {
-	item, ok := ctx.Data[key]
-	if ok {
-		return item, nil
-	}
-	return nil, newError("Key %s does not exist.", key)
-}
-
-func (ctx *Ctx) WriteToHeader(code int, values ...[]string) {
-	if code >= 0 {
-		ctx.RW.WriteHeader(code)
-	}
-	ctx.ModifyHeader("set", values...)
-}
-
-func (ctx *Ctx) ModifyHeader(action string, values ...[]string) {
-	switch action {
-	case "set":
-		for _, v := range values {
-			ctx.RW.Header().Set(v[0], v[1])
-		}
-	default:
-		for _, v := range values {
-			ctx.RW.Header().Add(v[0], v[1])
-		}
-	}
+	return nil, false
 }

@@ -241,7 +241,13 @@ func (b *Blueprint) HEAD(path string, managers ...Manage) {
 
 func (b *Blueprint) STATIC(path string) {
 	b.push(func() { b.app.StaticDirs(dropTrailing(path, "*filepath")) }, nil)
-	b.Manage(NewRoute("GET", path, true, []Manage{handleStatic}))
+	register := func() {
+		route := NewRoute("GET", path, true, []Manage{b.app.Staticor.Handle})
+		b.register(route)
+		b.add(route)
+		b.app.manage(route.method, route.path, route.handle)
+	}
+	b.push(register, nil)
 }
 
 func (b *Blueprint) STATUS(code int, managers ...Manage) {

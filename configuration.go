@@ -6,10 +6,12 @@ import (
 )
 
 var (
-	configureLast = []Configuration{cblueprints,
+	configureLast = []Configuration{
 		cstatic,
+		cblueprints,
 		ctemplating,
-		csession}
+		csession,
+	}
 )
 
 type (
@@ -53,7 +55,7 @@ func ctemplating(a *App) error {
 }
 
 func cstatic(a *App) error {
-	a.Env.StaticorInit()
+	StaticorInit(a)
 	return nil
 }
 
@@ -98,17 +100,17 @@ func EnvItem(items ...string) Configuration {
 	}
 }
 
-func Extension(name string, fn interface{}) Configuration {
-	return func(a *App) error {
-		return a.Env.AddExtension(name, fn)
-	}
-}
+//func CtxExtension(name string, fn interface{}) Configuration {
+//	return func(a *App) error {
+//		return a.Env.AddExtension(name, fn)
+//	}
+//}
 
-func Extensions(fns map[string]interface{}) Configuration {
-	return func(a *App) error {
-		return a.Env.AddExtensions(fns)
-	}
-}
+//func CtxExtensions(fns map[string]interface{}) Configuration {
+//	return func(a *App) error {
+//		return a.Env.AddExtensions(fns)
+//	}
+//}
 
 func Templating(t Templator) Configuration {
 	return func(a *App) error {

@@ -38,10 +38,10 @@ type (
 
 	engine struct {
 		p                     sync.Pool
+		trees                 map[string]*node
 		app                   *App
 		RedirectTrailingSlash bool
 		RedirectFixedPath     bool
-		trees                 map[string]*node
 	}
 
 	result struct {
@@ -54,7 +54,7 @@ type (
 
 func newEngine(app *App) *engine {
 	e := &engine{app: app, RedirectTrailingSlash: true, RedirectFixedPath: true}
-	e.p.New = func() interface{} { return NewCtx(e) }
+	e.p.New = func() interface{} { return NewCtx(app) }
 	return e
 }
 
@@ -579,9 +579,10 @@ func (e *engine) status(code int) *result {
 	return &result{code, statusManage(code), nil, false}
 }
 
-func (e *engine) statusfunc(c *Ctx, code int) {
+func (e *engine) statusfunc(c *Ctx, code int) error {
 	rslt := e.status(code)
 	rslt.manage(c)
+	return nil
 }
 
 func (e *engine) lookup(method, path string) *result {
@@ -638,7 +639,7 @@ func rcvr(c *Ctx) {
 	if rcv := recover(); rcv != nil {
 		p := newError(fmt.Sprintf("%s", rcv))
 		c.errorTyped(p, ErrorTypePanic, stack(3))
-		c.Status(500)
+		c.Call("status", 500)
 	}
 }
 
@@ -658,7 +659,7 @@ func handle(e *engine, c *Ctx) {
 func (e *engine) get(rw http.ResponseWriter, req *http.Request) (*Ctx, CancelFunc) {
 	c := e.p.Get().(*Ctx)
 	c.Reset(req, rw)
-	c.Request.ParseMultipartForm(e.app.Env.Store["UPLOAD_SIZE"].Int64())
+	//c.Request.ParseMultipartForm(e.app.Env.Store["UPLOAD_SIZE"].Int64())
 	c.Start(e.app.SessionManager)
 	cancel := func(c *Ctx) { e.put(c); c.Cancel() }
 	return c, cancel

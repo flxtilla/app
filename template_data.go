@@ -7,13 +7,12 @@ import (
 )
 
 type (
-	TData map[string]interface{}
+	TemplateData map[string]interface{}
 )
 
-func templateData(any interface{}) TData {
+func baseTemplateData(any interface{}) TemplateData {
 	if rcvd, ok := any.(map[string]interface{}); ok {
-		td := rcvd
-		return td
+		return rcvd
 	} else {
 		td := make(map[string]interface{})
 		td["Any"] = any
@@ -21,20 +20,25 @@ func templateData(any interface{}) TData {
 	}
 }
 
-func TemplateData(c *Ctx, any interface{}) TData {
-	td := templateData(any)
-	td["Ctx"] = c.Copy()
-	td["Request"] = c.Request
-	td["Session"] = c.Session
+func NewTemplateData(c *Ctx, any interface{}) TemplateData {
+	t := baseTemplateData(any)
+	t["Ctx"] = c.Copy()
+	t["Request"] = c.Request
+	t["Session"] = c.Session
 	for k, v := range c.Data {
-		td[k] = v
+		t[k] = v
 	}
-	td["Flash"] = c.AllFlashMessages()
-	td.contextProcessors(c)
-	return td
+	t["Flash"] = getallflash(c)
+	t.setCtxProcessors(c)
+	return t
 }
 
-func (t TData) GetFlashMessages(categories ...string) []string {
+func getallflash(c *Ctx) map[string]string {
+	ret, _ := c.Call("flashed")
+	return ret.(map[string]string)
+}
+
+func (t TemplateData) Flashes(categories ...string) []string {
 	var ret []string
 	if fls, ok := t["Flash"].(map[string]string); ok {
 		for k, v := range fls {
@@ -46,9 +50,9 @@ func (t TData) GetFlashMessages(categories ...string) []string {
 	return ret
 }
 
-func (t TData) UrlFor(route string, external bool, params ...string) string {
+func (t TemplateData) UrlFor(route string, external bool, params ...string) string {
 	if ctx, ok := t["Ctx"].(*Ctx); ok {
-		ret, err := ctx.Call("urlfor", ctx, route, external, params)
+		ret, err := ctx.Call("urlfor", route, external, params)
 		if err != nil {
 			return newError(fmt.Sprint("%s", err)).Error()
 		}
@@ -57,8 +61,8 @@ func (t TData) UrlFor(route string, external bool, params ...string) string {
 	return fmt.Sprintf("Unable to return a url from: %s, %s, external(%t)", route, params, external)
 }
 
-func (t TData) HTML(name string) template.HTML {
-	if fn, ok := t.ctxPrc(name); ok {
+func (t TemplateData) HTML(name string) template.HTML {
+	if fn, ok := t.getCtxProcessor(name); ok {
 		res, err := call(fn)
 		if err != nil {
 			return template.HTML(err.Error())
@@ -70,8 +74,8 @@ func (t TData) HTML(name string) template.HTML {
 	return template.HTML(fmt.Sprintf("<p>context processor %s unprocessable by HTML</p>", name))
 }
 
-func (t TData) STRING(name string) string {
-	if fn, ok := t.ctxPrc(name); ok {
+func (t TemplateData) STRING(name string) string {
+	if fn, ok := t.getCtxProcessor(name); ok {
 		res, err := call(fn)
 		if err != nil {
 			return err.Error()
@@ -83,8 +87,8 @@ func (t TData) STRING(name string) string {
 	return fmt.Sprintf("context processor %s unprocessable by STRING", name)
 }
 
-func (t TData) CALL(name string) interface{} {
-	if fn, ok := t.ctxPrc(name); ok {
+func (t TemplateData) CALL(name string) interface{} {
+	if fn, ok := t.getCtxProcessor(name); ok {
 		if res, err := call(fn); err == nil {
 			return res
 		} else {
@@ -94,7 +98,7 @@ func (t TData) CALL(name string) interface{} {
 	return fmt.Sprintf("context processor %s cannot be processed by CALL", name)
 }
 
-func (t TData) ctxPrc(name string) (reflect.Value, bool) {
+func (t TemplateData) getCtxProcessor(name string) (reflect.Value, bool) {
 	if fn, ok := t[name]; ok {
 		if fn, ok := fn.(reflect.Value); ok {
 			return fn, true
@@ -103,15 +107,23 @@ func (t TData) ctxPrc(name string) (reflect.Value, bool) {
 	return reflect.Value{}, false
 }
 
-func (t TData) contextProcessor(fn reflect.Value, c *Ctx) reflect.Value {
+func (t TemplateData) setCtxProcessor(fn reflect.Value, c *Ctx) reflect.Value {
 	newfn := func() (interface{}, error) {
 		return call(fn, c)
 	}
 	return valueFunc(newfn)
 }
 
-func (t TData) contextProcessors(c *Ctx) {
-	for k, fn := range c.App.ctxprocessors {
-		t[k] = t.contextProcessor(fn, c)
+func processorsFromEnv(c *Ctx) map[string]reflect.Value {
+	ret, err := c.Call("env", "processors")
+	if err == nil {
+		return ret.(map[string]reflect.Value)
+	}
+	return nil
+}
+
+func (t TemplateData) setCtxProcessors(c *Ctx) {
+	for k, fn := range processorsFromEnv(c) {
+		t[k] = t.setCtxProcessor(fn, c)
 	}
 }
