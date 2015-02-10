@@ -17,7 +17,7 @@ var (
 	cValueSanitizer = strings.NewReplacer("\n", " ", "\r", " ", ";", " ")
 )
 
-func cookies(c *Ctx) map[string]*http.Cookie {
+func cookies(c *ctx) map[string]*http.Cookie {
 	ret := make(map[string]*http.Cookie)
 	for _, cookie := range c.Request.Cookies() {
 		ret[cookie.Name] = cookie
@@ -25,12 +25,12 @@ func cookies(c *Ctx) map[string]*http.Cookie {
 	return ret
 }
 
-func Cookies(c *Ctx) map[string]*http.Cookie {
+func Cookies(c *ctx) map[string]*http.Cookie {
 	ret, _ := c.Call("cookies", c)
 	return ret.(map[string]*http.Cookie)
 }
 
-func ReadCookies(c *Ctx) map[string]string {
+func ReadCookies(c *ctx) map[string]string {
 	ret := make(map[string]string)
 	cks := cookies(c)
 	for k, v := range cks {
@@ -39,7 +39,7 @@ func ReadCookies(c *Ctx) map[string]string {
 	return ret
 }
 
-func unpackcookie(c *Ctx, cookie *http.Cookie) string {
+func unpackcookie(c *ctx, cookie *http.Cookie) string {
 	val := cookie.Value
 	if val == "" {
 		return val
@@ -68,7 +68,7 @@ func unpackcookie(c *Ctx, cookie *http.Cookie) string {
 	return "cookie value could not be read and/or unpacked"
 }
 
-func cookie(c *Ctx, secure bool, name string, value string, opts []interface{}) error {
+func cookie(c *ctx, secure bool, name string, value string, opts []interface{}) error {
 	if secure {
 		if secret, ok := CheckStore(c, "SECRET_KEY"); ok {
 			value = securevalue(secret.Value, value)
@@ -79,7 +79,7 @@ func cookie(c *Ctx, secure bool, name string, value string, opts []interface{}) 
 	return nil
 }
 
-func Cookie(c *Ctx, name string, value string, opts ...interface{}) error {
+func Cookie(c *ctx, name string, value string, opts ...interface{}) error {
 	_, err := c.Call("cookie", c, false, name, value, opts)
 	return err
 }
@@ -139,7 +139,7 @@ func basiccookie(name string, value string, opts ...interface{}) string {
 	return b.String()
 }
 
-func SecureCookie(c *Ctx, name string, value string, opts ...interface{}) error {
+func SecureCookie(c *ctx, name string, value string, opts ...interface{}) error {
 	_, err := c.Call("cookie", c, true, name, value, opts)
 	return err
 }

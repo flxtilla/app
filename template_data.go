@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"html/template"
 	"reflect"
+
+	"github.com/thrisp/flotilla/xrr"
 )
 
 type (
@@ -20,9 +22,9 @@ func baseTemplateData(any interface{}) TemplateData {
 	}
 }
 
-func NewTemplateData(c *Ctx, any interface{}) TemplateData {
+func NewTemplateData(c *ctx, any interface{}) TemplateData {
 	t := baseTemplateData(any)
-	t["Ctx"] = c.Copy()
+	t["Ctx"] = c.replicate()
 	t["Request"] = c.Request
 	t["Session"] = c.Session
 	for k, v := range c.Data {
@@ -33,7 +35,7 @@ func NewTemplateData(c *Ctx, any interface{}) TemplateData {
 	return t
 }
 
-func getallflash(c *Ctx) map[string]string {
+func getallflash(c Ctx) map[string]string {
 	ret, _ := c.Call("flashed")
 	return ret.(map[string]string)
 }
@@ -51,10 +53,10 @@ func (t TemplateData) Flashes(categories ...string) []string {
 }
 
 func (t TemplateData) UrlFor(route string, external bool, params ...string) string {
-	if ctx, ok := t["Ctx"].(*Ctx); ok {
-		ret, err := ctx.Call("urlfor", route, external, params)
+	if c, ok := t["Ctx"].(Ctx); ok {
+		ret, err := c.Call("urlfor", route, external, params)
 		if err != nil {
-			return newError(fmt.Sprint("%s", err)).Error()
+			return xrr.NewError(fmt.Sprint("%s", err)).Error()
 		}
 		return ret.(string)
 	}
@@ -107,14 +109,14 @@ func (t TemplateData) getCtxProcessor(name string) (reflect.Value, bool) {
 	return reflect.Value{}, false
 }
 
-func (t TemplateData) setCtxProcessor(fn reflect.Value, c *Ctx) reflect.Value {
+func (t TemplateData) setCtxProcessor(fn reflect.Value, c *ctx) reflect.Value {
 	newfn := func() (interface{}, error) {
 		return call(fn, c)
 	}
 	return valueFunc(newfn)
 }
 
-func processorsFromEnv(c *Ctx) map[string]reflect.Value {
+func processorsFromEnv(c *ctx) map[string]reflect.Value {
 	ret, err := c.Call("env", "processors")
 	if err == nil {
 		return ret.(map[string]reflect.Value)
@@ -122,7 +124,7 @@ func processorsFromEnv(c *Ctx) map[string]reflect.Value {
 	return nil
 }
 
-func (t TemplateData) setCtxProcessors(c *Ctx) {
+func (t TemplateData) setCtxProcessors(c *ctx) {
 	for k, fn := range processorsFromEnv(c) {
 		t[k] = t.setCtxProcessor(fn, c)
 	}

@@ -7,6 +7,7 @@ import (
 	"reflect"
 
 	"github.com/thrisp/flotilla/session"
+	"github.com/thrisp/flotilla/xrr"
 )
 
 var (
@@ -33,6 +34,7 @@ type (
 		extensions    map[string]reflect.Value
 		tplfunctions  map[string]interface{}
 		ctxprocessors map[string]reflect.Value
+		customstatus  map[int]*status
 	}
 )
 
@@ -72,7 +74,12 @@ func (env *Env) SetMode(mode string, value bool) error {
 		m.SetBool(value)
 		return nil
 	}
-	return newError("env could not be set to %s", mode)
+	return xrr.NewError("env could not be set to %s", mode)
+}
+
+func CurrentMode(c Ctx) *Modes {
+	m, _ := c.Call("mode")
+	return m.(*Modes)
 }
 
 func (env *Env) CtxProcessor(name string, fn interface{}) {
@@ -150,6 +157,13 @@ func (env *Env) SessionInit() {
 		env.SessionManager = env.defaultsessionmanager()
 	}
 	go env.SessionManager.GC()
+}
+
+func (env *Env) CustomStatus(s *status) {
+	if env.customstatus == nil {
+		env.customstatus = make(map[int]*status)
+	}
+	env.customstatus[s.code] = s
 }
 
 func init() {

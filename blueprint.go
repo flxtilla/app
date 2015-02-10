@@ -3,6 +3,8 @@ package flotilla
 import (
 	"path/filepath"
 	"strconv"
+
+	"github.com/thrisp/flotilla/xrr"
 )
 
 type (
@@ -67,7 +69,7 @@ func (app *App) Mount(mount string, inherit bool, blueprints ...*Blueprint) erro
 	var mbs []*Blueprint
 	for _, blueprint := range blueprints {
 		if blueprint.registered {
-			return newError("only unregistered blueprints may be mounted; %s is already registered", blueprint.Prefix)
+			return xrr.NewError("only unregistered blueprints may be mounted; %s is already registered", blueprint.Prefix)
 		}
 
 		newprefix := filepath.ToSlash(filepath.Join(mount, blueprint.Prefix))
@@ -200,13 +202,14 @@ func (b *Blueprint) register(route *Route) {
 	route.managers = b.combineManagers(route.managers)
 	route.path = b.pathFor(route.base)
 	route.registered = true
+	route.mkctx = b.app.Ctx()
 }
 
 func (b *Blueprint) Manage(route *Route) {
 	register := func() {
 		b.register(route)
 		b.add(route)
-		b.app.manage(route.method, route.path, route.handle)
+		b.app.Handle(route.method, route.path, route.rule)
 	}
 	b.push(register, route)
 }
@@ -242,15 +245,14 @@ func (b *Blueprint) HEAD(path string, managers ...Manage) {
 func (b *Blueprint) STATIC(path string) {
 	b.push(func() { b.app.StaticDirs(dropTrailing(path, "*filepath")) }, nil)
 	register := func() {
-		route := NewRoute("GET", path, true, []Manage{b.app.Staticor.Handle})
+		route := NewRoute("GET", path, true, []Manage{b.app.Staticor.Manage})
 		b.register(route)
 		b.add(route)
-		b.app.manage(route.method, route.path, route.handle)
+		b.app.Handle(route.method, route.path, route.rule)
 	}
 	b.push(register, nil)
 }
 
 func (b *Blueprint) STATUS(code int, managers ...Manage) {
-	s := statusManage(code, managers...)
-	b.push(func() { b.app.engine.manage("STATUS", strconv.Itoa(code), s) }, nil)
+	b.push(func() { b.app.Handle("STATUS", strconv.Itoa(code), CustomStatusRule(b.app, code, managers...)) }, nil)
 }

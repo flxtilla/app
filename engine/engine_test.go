@@ -1,15 +1,6 @@
-package flotilla
+package engine
 
 /*
-import (
-	"errors"
-	"fmt"
-	"net/http"
-	"reflect"
-	"strings"
-	"testing"
-)
-
 func printChildren(n *node, prefix string) {
 	fmt.Printf(" %02d:%02d %s%s[%d] %v %t %d \r\n", n.priority, n.maxParams, prefix, n.path, len(n.children), n.manage, n.wildChild, n.nType)
 	for l := len(n.path); l > 0; l-- {
@@ -20,11 +11,11 @@ func printChildren(n *node, prefix string) {
 	}
 }
 
-// Used as a workaround since we can't compare functions or their adresses
+// Used as a workaround since we can't compare functions or their addresses
 var fakeHandlerValue string
 
 func fakeHandler(val string) Manage {
-	return func(c *Ctx) {
+	return func(rw http.ResponseWriter, req *http.Request, rs *Result) {
 		fakeHandlerValue = val
 	}
 }

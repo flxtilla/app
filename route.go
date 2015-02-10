@@ -2,10 +2,13 @@ package flotilla
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/thrisp/flotilla/engine"
 )
 
 var (
@@ -23,6 +26,7 @@ type (
 		path       string
 		managers   []Manage
 		Name       string
+		mkctx      func(w http.ResponseWriter, rq *http.Request, rs *engine.Result, rt *Route) Ctx
 	}
 
 	Routes map[string]*Route
@@ -66,8 +70,10 @@ func (rt *Route) App() *App {
 	return rt.blueprint.app
 }
 
-func (rt *Route) handle(c *Ctx) {
-	c.Run(rt.managers...)
+func (rt *Route) rule(rw http.ResponseWriter, rq *http.Request, rs *engine.Result) {
+	c := rt.mkctx(rw, rq, rs, rt)
+	c.Run()
+	c.Cancel()
 }
 
 func NewRoute(method string, path string, static bool, managers []Manage) *Route {

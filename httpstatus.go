@@ -5,6 +5,9 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+
+	"github.com/thrisp/flotilla/engine"
+	"github.com/thrisp/flotilla/xrr"
 )
 
 const (
@@ -46,33 +49,37 @@ pre p:nth-child(even){background-color: rgba(216,216,216,0.25); margin: 0;}
 )
 
 type (
-	statusmanager struct {
+	status struct {
 		code     int
 		managers []Manage
 	}
 )
 
-func (sm statusmanager) first(c *Ctx) {
-	c.RW.WriteHeader(sm.code)
+func (s status) first(c Ctx) {
+	c.Call("headerwrite", s.code)
 }
 
-func panicsignal(c *Ctx) {
-	for _, p := range c.Errors.ByType(ErrorTypePanic) {
+func panicsignal(c Ctx) {
+	for _, p := range Panics(c) {
 		sig := fmt.Sprintf("encountered an internal error: %s\n-----\n%s\n-----\n", p.Err, p.Meta)
-		// c.App.Panic(sig)
-		fmt.Printf(sig)
+		c.Call("panicsignal", sig)
 	}
 }
 
-func panicserve(c *Ctx, b bytes.Buffer) {
+func panicserve(c Ctx, b bytes.Buffer) {
 	servePanic := fmt.Sprintf(panicHtml, b.String())
-	c.RW.Header().Set("Content-Type", "text/html")
-	c.RW.Write([]byte(servePanic))
+	_, _ = c.Call("headermodify", "set", []string{"Content-Type", "text/html"})
+	_, _ = c.Call("writetoresponse", []byte(servePanic))
 }
 
-func panictobuffer(c *Ctx) bytes.Buffer {
+func Panics(c Ctx) xrr.ErrorMsgs {
+	panics, _ := c.Call("panics")
+	return panics.(xrr.ErrorMsgs)
+}
+
+func panictobuffer(c Ctx) bytes.Buffer {
 	var auffer bytes.Buffer
-	for _, p := range c.Errors.ByType(ErrorTypePanic) {
+	for _, p := range Panics(c) {
 		reader := bufio.NewReader(bytes.NewReader([]byte(fmt.Sprintf("%s", p.Meta))))
 		lineno := 0
 		var buffer bytes.Buffer
@@ -89,37 +96,76 @@ func panictobuffer(c *Ctx) bytes.Buffer {
 				break
 			}
 		}
-		pb := fmt.Sprintf(panicBlock, p.Err, buffer.String())
+		pb := fmt.Sprintf(panicBlock, p.Error(), buffer.String())
 		auffer.WriteString(pb)
 	}
 	return auffer
 }
 
-func (sm statusmanager) panics(c *Ctx) {
-	if sm.code == 500 && !c.RW.Written() {
-		//if !c.App.Mode.Production {
-		panicserve(c, panictobuffer(c))
-		panicsignal(c)
-		//}
+func IsWritten(c Ctx) bool {
+	ret, _ := c.Call("iswritten")
+	return ret.(bool)
+}
+
+func (s status) panics(c Ctx) {
+	if s.code == 500 && !IsWritten(c) {
+		if !CurrentMode(c).Production {
+			panicserve(c, panictobuffer(c))
+			panicsignal(c)
+		}
 	}
 }
 
-func (sm statusmanager) last(c *Ctx) {
-	c.Push(func(c *Ctx) {
-		if !c.RW.Written() {
-			c.RW.Write([]byte(fmt.Sprintf(statusText, sm.code, http.StatusText(sm.code))))
+func (s status) last(c Ctx) {
+	_, _ = c.Call("push", func(c Ctx) {
+		if !IsWritten(c) {
+			_, _ = c.Call("writetoresponse", []byte(fmt.Sprintf(statusText, s.code, http.StatusText(s.code))))
 		}
 	})
 }
 
-func (sm *statusmanager) handle(c *Ctx) {
-	c.ReRun(sm.managers...)
+func StatusRule(a *App) engine.Rule {
+	return func(rw http.ResponseWriter, rq *http.Request, rs *engine.Result) {
+		s := newStatus(rs.Code)
+		c := NewCtx(a.extensions, rs)
+		c.reset(rq, rw, s.managers)
+		c.Run()
+		c.Cancel()
+	}
 }
 
-func statusManage(code int, ms ...Manage) Manage {
-	sm := statusmanager{code: code}
-	sm.managers = []Manage{sm.first}
-	sm.managers = append(sm.managers, ms...)
-	sm.managers = append(sm.managers, sm.panics, sm.last)
-	return sm.handle
+func CustomStatusRule(a *App, code int, m ...Manage) engine.Rule {
+	s := newStatus(code, m...)
+	a.CustomStatus(s)
+	return func(rw http.ResponseWriter, rq *http.Request, rs *engine.Result) {
+		c := NewCtx(a.extensions, rs)
+		c.reset(rq, rw, s.managers)
+		c.Call("start", a.SessionManager)
+		c.Run()
+		c.Cancel()
+	}
+}
+
+func newStatus(code int, m ...Manage) *status {
+	s := &status{code: code}
+	s.managers = []Manage{s.first}
+	s.managers = append(s.managers, m...)
+	s.managers = append(s.managers, s.panics, s.last)
+	return s
+}
+
+func HasCustomStatus(a *App, code int) (*status, bool) {
+	s, ok := a.Env.customstatus[code]
+	if !ok {
+		return newStatus(code), false
+	}
+	return s, true
+}
+
+func makehttpstatus(a *App) func(*ctx, int) error {
+	return func(c *ctx, code int) error {
+		s, _ := HasCustomStatus(a, code)
+		c.rerun(s.managers...)
+		return nil
+	}
 }

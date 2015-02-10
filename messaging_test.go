@@ -1,6 +1,11 @@
 package flotilla
 
 /*
+import (
+	"fmt"
+	"testing"
+)
+
 func testSignal(method string, t *testing.T) {
 	var sent bool = false
 	f := New("signals_test")
@@ -21,7 +26,7 @@ func testSignal(method string, t *testing.T) {
 		}
 	}
 	f.Queues["testqueue"] = testqueue
-	rt := NewRoute(method, "/test_signal_sent", false, []func(*ctx.Ctx){func(c *ctx.Ctx) {
+	rt := NewRoute(method, "/test_signal_sent", false, []Manage{func(c *Ctx) {
 		sent = true
 		f.Emit("TEST")
 		for i := 0; i < 10; i++ {

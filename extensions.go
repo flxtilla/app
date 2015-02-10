@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+
+	"github.com/thrisp/flotilla/session"
+	"github.com/thrisp/flotilla/xrr"
 )
 
 type (
@@ -14,13 +17,13 @@ type (
 
 	extensor struct {
 		ext map[string]reflect.Value
-		ctx *Ctx
+		ctx *ctx
 	}
 
 	RequestFiles map[string][]*multipart.FileHeader
 )
 
-func newextensor(e map[string]reflect.Value, c *Ctx) Extensor {
+func newextensor(e map[string]reflect.Value, c *ctx) Extensor {
 	return &extensor{ext: e, ctx: c}
 }
 
@@ -33,58 +36,75 @@ func (e *extensor) Call(name string, args ...interface{}) (interface{}, error) {
 
 func BuiltInExtensions(a *App) map[string]interface{} {
 	b := map[string]interface{}{
-		"abort":          abort,
-		"cookie":         cookie,
-		"cookies":        cookies,
-		"env":            envquery(a),
-		"files":          files,
-		"flash":          flash,
-		"flashes":        flashes,
-		"flashed":        flashed,
-		"form":           form,
-		"get":            getdata,
-		"headerwrite":    headerwrite,
-		"headermodify":   headermodify,
-		"redirect":       redirect,
-		"rendertemplate": rendertemplatefunc(a),
-		"serveplain":     serveplain,
-		"servefile":      servefile,
-		"set":            setdata,
-		"status":         a.engine.statusfunc,
-		"store":          storequery(a),
-		"urlfor":         urlforfunc(a),
+		"abort":           abort,
+		"cookie":          cookie,
+		"cookies":         cookies,
+		"env":             envquery(a),
+		"files":           files,
+		"flash":           flash,
+		"flashes":         flashes,
+		"flashed":         flashed,
+		"form":            form,
+		"get":             getdata,
+		"getsession":      getsession,
+		"headernow":       headernow,
+		"headerwrite":     headerwrite,
+		"headermodify":    headermodify,
+		"iswritten":       iswritten,
+		"mode":            currentmodefunc(a),
+		"panics":          panics,
+		"panicsignal":     panicsignalfunc(a),
+		"push":            push,
+		"redirect":        redirect,
+		"request":         currentrequest,
+		"release":         releasesession,
+		"rendertemplate":  rendertemplatefunc(a),
+		"serveplain":      serveplain,
+		"servefile":       servefile,
+		"set":             setdata,
+		"setsession":      setsession,
+		"start":           startsession,
+		"status":          makehttpstatus(a),
+		"store":           storequery(a),
+		"writetoresponse": writetoresponse,
+		"urlfor":          urlforfunc(a),
 	}
 	return b
 }
 
-func abort(c *Ctx, code int) error {
+func abort(c *ctx, code int) error {
 	if code >= 0 {
 		c.RW.WriteHeader(code)
 	}
 	return nil
 }
 
-func redirect(c *Ctx, code int, location string) error {
+func redirect(c *ctx, code int, location string) error {
 	if code >= 300 && code <= 308 {
-		c.Push(func(c *Ctx) {
+		c.push(func(pc Ctx) {
 			http.Redirect(c.RW, c.Request, location, code)
 			c.RW.WriteHeaderNow()
 		})
 		return nil
 	} else {
-		return newError("Cannot send a redirect with status code %d", code)
+		return xrr.NewError("Cannot send a redirect with status code %d", code)
 	}
 }
 
-func serveplain(c *Ctx, code int, data []byte) error {
-	c.Push(func(c *Ctx) {
+func writetoresponse(c *ctx, data []byte) error {
+	c.RW.Write(data)
+	return nil
+}
+
+func serveplain(c *ctx, code int, data []byte) error {
+	c.push(func(pc Ctx) {
 		headerwrite(c, code, []string{"Content-Type", "text/plain"})
 		c.RW.Write(data)
 	})
 	return nil
 }
 
-func servefile(c *Ctx, f http.File) error {
+func servefile(c *ctx, f http.File) error {
 	fi, err := f.Stat()
 	if err == nil {
 		http.ServeContent(c.RW, c.Request, fi.Name(), fi.ModTime(), f)
@@ -92,18 +112,18 @@ func servefile(c *Ctx, f http.File) error {
 	return err
 }
 
-func rendertemplatefunc(a *App) func(*Ctx, string, interface{}) error {
-	return func(c *Ctx, name string, data interface{}) error {
+func rendertemplatefunc(a *App) func(*ctx, string, interface{}) error {
+	return func(c *ctx, name string, data interface{}) error {
 		td := NewTemplateData(c, data)
-		c.Push(func(pc *Ctx) {
-			a.Templator.Render(pc.RW, name, td)
+		c.push(func(pc Ctx) {
+			a.Templator.Render(c.RW, name, td)
 		})
 		return nil
 	}
 }
 
-func urlforfunc(a *App) func(*Ctx, string, bool, []string) (string, error) {
-	return func(c *Ctx, route string, external bool, params []string) (string, error) {
+func urlforfunc(a *App) func(*ctx, string, bool, []string) (string, error) {
+	return func(c *ctx, route string, external bool, params []string) (string, error) {
 		if route, ok := a.Routes()[route]; ok {
 			routeurl, _ := route.Url(params...)
 			if routeurl != nil {
@@ -113,11 +133,11 @@ func urlforfunc(a *App) func(*Ctx, string, bool, []string) (string, error) {
 				return routeurl.String(), nil
 			}
 		}
-		return "", newError("unable to get url for route %s with params %s", route, params)
+		return "", xrr.NewError("unable to get url for route %s with params %s", route, params)
 	}
 }
 
-func flash(c *Ctx, category string, message string) error {
+func flash(c *ctx, category string, message string) error {
 	if fl := c.Session.Get("_flashes"); fl != nil {
 		if fls, ok := fl.(map[string]string); ok {
 			fls[category] = message
@@ -131,7 +151,7 @@ func flash(c *Ctx, category string, message string) error {
 	return nil
 }
 
-func flashes(c *Ctx, categories []string) []string {
+func flashes(c *ctx, categories []string) []string {
 	var ret []string
 	if fl := c.Session.Get("_flashes"); fl != nil {
 		if fls, ok := fl.(map[string]string); ok {
@@ -147,7 +167,7 @@ func flashes(c *Ctx, categories []string) []string {
 	return ret
 }
 
-func flashed(c *Ctx) map[string]string {
+func flashed(c *ctx) map[string]string {
 	var ret map[string]string
 	if fl := c.Session.Get("_flashes"); fl != nil {
 		if fls, ok := fl.(map[string]string); ok {
@@ -158,18 +178,19 @@ func flashed(c *Ctx) map[string]string {
 	return ret
 }
 
-func form(c *Ctx) url.Values {
+func form(c *ctx) url.Values {
+	//c.Request.ParseMultipartForm(e.app.Env.Store["UPLOAD_SIZE"].Int64())
 	return c.Request.Form
 }
 
-func files(c *Ctx) RequestFiles {
+func files(c *ctx) RequestFiles {
 	if c.Request.MultipartForm.File != nil {
 		return c.Request.MultipartForm.File
 	}
 	return nil
 }
 
-func setdata(c *Ctx, key string, item interface{}) error {
+func setdata(c *ctx, key string, item interface{}) error {
 	if c.Data == nil {
 		c.Data = make(map[string]interface{})
 	}
@@ -177,15 +198,20 @@ func setdata(c *Ctx, key string, item interface{}) error {
 	return nil
 }
 
-func getdata(c *Ctx, key string) (interface{}, error) {
+func getdata(c *ctx, key string) (interface{}, error) {
 	item, ok := c.Data[key]
 	if ok {
 		return item, nil
 	}
-	return nil, newError("Key %s does not exist.", key)
+	return nil, xrr.NewError("Key %s does not exist.", key)
 }
 
-func headerwrite(c *Ctx, code int, values ...[]string) error {
+func headernow(c *ctx) error {
+	c.RW.WriteHeaderNow()
+	return nil
+}
+
+func headerwrite(c *ctx, code int, values ...[]string) error {
 	if code >= 0 {
 		c.RW.WriteHeader(code)
 	}
@@ -193,7 +219,7 @@ func headerwrite(c *Ctx, code int, values ...[]string) error {
 	return nil
 }
 
-func headermodify(c *Ctx, action string, values ...[]string) error {
+func headermodify(c *ctx, action string, values ...[]string) error {
 	switch action {
 	case "set":
 		for _, v := range values {
@@ -207,8 +233,8 @@ func headermodify(c *Ctx, action string, values ...[]string) error {
 	return nil
 }
 
-func envquery(a *App) func(*Ctx, string) interface{} {
-	return func(c *Ctx, item string) interface{} {
+func envquery(a *App) func(*ctx, string) interface{} {
+	return func(c *ctx, item string) interface{} {
 		switch item {
 		case "store":
 			return a.Env.Store
@@ -222,11 +248,69 @@ func envquery(a *App) func(*Ctx, string) interface{} {
 	}
 }
 
-func storequery(a *App) func(*Ctx, string) (*StoreItem, error) {
-	return func(c *Ctx, key string) (*StoreItem, error) {
+func storequery(a *App) func(*ctx, string) (*StoreItem, error) {
+	return func(c *ctx, key string) (*StoreItem, error) {
 		if item, ok := a.Env.Store[key]; ok {
 			return item, nil
 		}
-		return nil, newError("Could not find StoreItem")
+		return nil, xrr.NewError("Could not find StoreItem")
+	}
+}
+
+func startsession(c *ctx, s *session.Manager) error {
+	var err error
+	c.Session, err = s.SessionStart(c.RW, c.Request)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func getsession(c *ctx, key string) interface{} {
+	return c.Session.Get(key)
+}
+
+func setsession(c *ctx, key string, value interface{}) error {
+	return c.Session.Set(key, value)
+}
+
+func releasesession(c *ctx) error {
+	if c.Session != nil {
+		if !c.RW.Written() {
+			c.Session.SessionRelease(c.RW)
+		}
+	}
+	return nil
+}
+
+func iswritten(c *ctx) bool {
+	return c.RW.Written()
+}
+
+func push(c *ctx, m Manage) error {
+	c.push(m)
+	return nil
+}
+
+func panics(c *ctx) xrr.ErrorMsgs {
+	return c.Result.Errors().ByType(xrr.ErrorTypePanic)
+	//combine with
+	//return c.Errors().ByType(xrr.ErrorTypePanic)
+}
+
+func panicsignalfunc(a *App) func(c *ctx, s string) error {
+	return func(c *ctx, sig string) error {
+		a.Panic(sig)
+		return nil
+	}
+}
+
+func currentrequest(c *ctx) *http.Request {
+	return c.Request
+}
+
+func currentmodefunc(a *App) func(c *ctx) *Modes {
+	return func(c *ctx) *Modes {
+		return a.Mode
 	}
 }

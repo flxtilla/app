@@ -1,11 +1,7 @@
-package flotilla
+package engine
 
 import (
-	"fmt"
-	"net/http"
-	"strconv"
 	"strings"
-	"sync"
 	"unicode"
 )
 
@@ -32,50 +28,10 @@ type (
 		maxParams uint8
 		indices   []byte
 		children  []*node
-		manage    Manage
+		rule      Rule
 		priority  uint32
 	}
-
-	engine struct {
-		p                     sync.Pool
-		trees                 map[string]*node
-		app                   *App
-		RedirectTrailingSlash bool
-		RedirectFixedPath     bool
-	}
-
-	result struct {
-		code   int
-		manage Manage
-		params Params
-		tsr    bool
-	}
 )
-
-func newEngine(app *App) *engine {
-	e := &engine{app: app, RedirectTrailingSlash: true, RedirectFixedPath: true}
-	e.p.New = func() interface{} { return NewCtx(app) }
-	return e
-}
-
-func (e *engine) manage(method string, path string, m Manage) {
-	if method != "STATUS" && path[0] != '/' {
-		panic("path must begin with '/'")
-	}
-
-	if e.trees == nil {
-		e.trees = make(map[string]*node)
-	}
-
-	root := e.trees[method]
-
-	if root == nil {
-		root = new(node)
-		e.trees[method] = root
-	}
-
-	root.addRoute(path, m)
-}
 
 func min(a, b int) int {
 	if a <= b {
@@ -117,7 +73,7 @@ func (n *node) incrementChildPrio(i int) int {
 	return i
 }
 
-func (n *node) addRoute(path string, manage Manage) {
+func (n *node) addRoute(path string, rule Rule) {
 	n.priority++
 	numParams := countParams(path)
 
@@ -144,7 +100,7 @@ func (n *node) addRoute(path string, manage Manage) {
 					wildChild: n.wildChild,
 					indices:   n.indices,
 					children:  n.children,
-					manage:    n.manage,
+					rule:      n.rule,
 					priority:  n.priority - 1,
 				}
 
@@ -158,7 +114,7 @@ func (n *node) addRoute(path string, manage Manage) {
 				n.children = []*node{&child}
 				n.indices = []byte{n.path[i]}
 				n.path = path[:i]
-				n.manage = nil
+				n.rule = nil
 				n.wildChild = false
 			}
 
@@ -215,23 +171,23 @@ func (n *node) addRoute(path string, manage Manage) {
 					n.incrementChildPrio(len(n.indices) - 1)
 					n = child
 				}
-				n.insertChild(numParams, path, manage)
+				n.insertChild(numParams, path, rule)
 				return
 
 			} else if i == len(path) { // Make node a (in-path) leaf
-				if n.manage != nil {
-					panic("a Manage is already registered for this path")
+				if n.rule != nil {
+					panic("a Rule is already registered for this path")
 				}
-				n.manage = manage
+				n.rule = rule
 			}
 			return
 		}
 	} else { // Empty tree
-		n.insertChild(numParams, path, manage)
+		n.insertChild(numParams, path, rule)
 	}
 }
 
-func (n *node) insertChild(numParams uint8, path string, manage Manage) {
+func (n *node) insertChild(numParams uint8, path string, rule Rule) {
 	var offset int
 
 	// find prefix until first wildcard (beginning with ':'' or '*'')
@@ -321,7 +277,7 @@ func (n *node) insertChild(numParams uint8, path string, manage Manage) {
 				path:      path[i:],
 				nType:     catchAll,
 				maxParams: 1,
-				manage:    manage,
+				rule:      rule,
 				priority:  1,
 			}
 			n.children = []*node{child}
@@ -332,10 +288,10 @@ func (n *node) insertChild(numParams uint8, path string, manage Manage) {
 
 	// insert remaining path part and handle to the leaf
 	n.path = path[offset:]
-	n.manage = manage
+	n.rule = rule
 }
 
-func (n *node) getValue(path string) (manage Manage, p Params, tsr bool) {
+func (n *node) getValue(path string) (rule Rule, p Params, tsr bool) {
 walk: // Outer loop for walking the tree
 	for {
 		if len(path) > len(n.path) {
@@ -356,7 +312,7 @@ walk: // Outer loop for walking the tree
 					// Nothing found.
 					// We can recommend to redirect to the same URL without a
 					// trailing slash if a leaf exists for that path.
-					tsr = (path == "/" && n.manage != nil)
+					tsr = (path == "/" && n.rule != nil)
 					return
 
 				}
@@ -394,13 +350,13 @@ walk: // Outer loop for walking the tree
 						return
 					}
 
-					if manage = n.manage; manage != nil {
+					if rule = n.rule; rule != nil {
 						return
 					} else if len(n.children) == 1 {
 						// No handle found. Check if a handle for this path + a
 						// trailing slash exists for TSR recommendation
 						n = n.children[0]
-						tsr = (n.path == "/" && n.manage != nil)
+						tsr = (n.path == "/" && n.rule != nil)
 					}
 
 					return
@@ -416,7 +372,7 @@ walk: // Outer loop for walking the tree
 					p[i].Key = n.path[2:]
 					p[i].Value = path
 
-					manage = n.manage
+					rule = n.rule
 					return
 
 				default:
@@ -426,7 +382,7 @@ walk: // Outer loop for walking the tree
 		} else if path == n.path {
 			// We should have reached the node containing the handle.
 			// Check if this node has a handle registered.
-			if manage = n.manage; manage != nil {
+			if rule = n.rule; rule != nil {
 				return
 			}
 
@@ -435,8 +391,8 @@ walk: // Outer loop for walking the tree
 			for i, index := range n.indices {
 				if index == '/' {
 					n = n.children[i]
-					tsr = (n.path == "/" && n.manage != nil) ||
-						(n.nType == catchAll && n.children[0].manage != nil)
+					tsr = (n.path == "/" && n.rule != nil) ||
+						(n.nType == catchAll && n.children[0].rule != nil)
 					return
 				}
 			}
@@ -448,7 +404,7 @@ walk: // Outer loop for walking the tree
 		// extra trailing slash if a leaf exists for that path
 		tsr = (path == "/") ||
 			(len(n.path) == len(path)+1 && n.path[len(path)] == '/' &&
-				path == n.path[:len(n.path)-1] && n.manage != nil)
+				path == n.path[:len(n.path)-1] && n.rule != nil)
 		return
 	}
 }
@@ -480,7 +436,7 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 
 				// Nothing found. We can recommend to redirect to the same URL
 				// without a trailing slash if a leaf exists for that path
-				found = (fixTrailingSlash && path == "/" && n.manage != nil)
+				found = (fixTrailingSlash && path == "/" && n.rule != nil)
 				return
 
 			} else {
@@ -511,13 +467,13 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 						}
 					}
 
-					if n.manage != nil {
+					if n.rule != nil {
 						return ciPath, true
 					} else if fixTrailingSlash && len(n.children) == 1 {
 						// No handle found. Check if a handle for this path + a
 						// trailing slash exists
 						n = n.children[0]
-						if n.path == "/" && n.manage != nil {
+						if n.path == "/" && n.rule != nil {
 							return append(ciPath, '/'), true
 						}
 					}
@@ -533,7 +489,7 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 		} else {
 			// We should have reached the node containing the handle.
 			// Check if this node has a handle registered.
-			if n.manage != nil {
+			if n.rule != nil {
 				return ciPath, true
 			}
 
@@ -543,8 +499,8 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 				for i, index := range n.indices {
 					if index == '/' {
 						n = n.children[i]
-						if (n.path == "/" && n.manage != nil) ||
-							(n.nType == catchAll && n.children[0].manage != nil) {
+						if (n.path == "/" && n.rule != nil) ||
+							(n.nType == catchAll && n.children[0].rule != nil) {
 							return append(ciPath, '/'), true
 						}
 						return
@@ -563,108 +519,9 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 		}
 		if len(path)+1 == len(n.path) && n.path[len(path)] == '/' &&
 			strings.ToLower(path) == strings.ToLower(n.path[:len(path)]) &&
-			n.manage != nil {
+			n.rule != nil {
 			return append(ciPath, n.path...), true
 		}
 	}
 	return
-}
-
-func (e *engine) status(code int) *result {
-	if root := e.trees["STATUS"]; root != nil {
-		if manage, params, tsr := root.getValue(strconv.Itoa(code)); manage != nil {
-			return &result{code, manage, params, tsr}
-		}
-	}
-	return &result{code, statusManage(code), nil, false}
-}
-
-func (e *engine) statusfunc(c *Ctx, code int) error {
-	rslt := e.status(code)
-	rslt.manage(c)
-	return nil
-}
-
-func (e *engine) lookup(method, path string) *result {
-	if root := e.trees[method]; root != nil {
-		if manage, params, tsr := root.getValue(path); manage != nil {
-			return &result{200, manage, params, tsr}
-		} else if method != "CONNECT" && path != "/" {
-			code := 301
-			if method != "GET" {
-				code = 307
-			}
-			if tsr && e.RedirectTrailingSlash {
-				var newpath string
-				if path[len(path)-1] == '/' {
-					newpath = path[:len(path)-1]
-				} else {
-					newpath = path + "/"
-				}
-				return &result{code: code,
-					manage: func(c *Ctx) {
-						c.Request.URL.Path = newpath
-						http.Redirect(c.RW, c.Request, c.Request.URL.String(), code)
-					}}
-			}
-			if e.RedirectFixedPath {
-				fixedPath, found := root.findCaseInsensitivePath(
-					CleanPath(path),
-					e.RedirectTrailingSlash,
-				)
-				if found {
-					return &result{code: code,
-						manage: func(c *Ctx) {
-							c.Request.URL.Path = string(fixedPath)
-							http.Redirect(c.RW, c.Request, c.Request.URL.String(), code)
-						}}
-				}
-			}
-
-		}
-	}
-	for method := range e.trees {
-		if method == method {
-			continue
-		}
-		handle, _, _ := e.trees[method].getValue(path)
-		if handle != nil {
-			return e.status(405)
-		}
-	}
-	return e.status(404)
-}
-
-func rcvr(c *Ctx) {
-	if rcv := recover(); rcv != nil {
-		p := newError(fmt.Sprintf("%s", rcv))
-		c.errorTyped(p, ErrorTypePanic, stack(3))
-		c.Call("status", 500)
-	}
-}
-
-func (e *engine) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	c, cancel := e.get(rw, req)
-	handle(e, c)
-	cancel(c)
-}
-
-func handle(e *engine, c *Ctx) {
-	defer rcvr(c)
-	rslt := e.lookup(c.Request.Method, c.Request.URL.Path)
-	c.Result(rslt)
-	rslt.manage(c)
-}
-
-func (e *engine) get(rw http.ResponseWriter, req *http.Request) (*Ctx, CancelFunc) {
-	c := e.p.Get().(*Ctx)
-	c.Reset(req, rw)
-	//c.Request.ParseMultipartForm(e.app.Env.Store["UPLOAD_SIZE"].Int64())
-	c.Start(e.app.SessionManager)
-	cancel := func(c *Ctx) { e.put(c); c.Cancel() }
-	return c, cancel
-}
-
-func (e *engine) put(c *Ctx) {
-	e.p.Put(c)
 }

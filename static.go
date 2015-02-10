@@ -9,8 +9,8 @@ import (
 type (
 	Staticor interface {
 		StaticDirs(...string) []string
-		Exists(*Ctx, string) bool
-		Handle(*Ctx)
+		Exists(Ctx, string) bool
+		Manage(Ctx)
 	}
 
 	staticor struct {
@@ -46,7 +46,7 @@ func (s *staticor) StaticDirs(dirs ...string) []string {
 	return s.staticDirs
 }
 
-func (s *staticor) appStaticFile(requested string, c *Ctx) bool {
+func (s *staticor) appStaticFile(requested string, c Ctx) bool {
 	exists := false
 	for _, dir := range s.app.StaticDirs() {
 		filepath.Walk(dir, func(path string, _ os.FileInfo, _ error) (err error) {
@@ -61,7 +61,7 @@ func (s *staticor) appStaticFile(requested string, c *Ctx) bool {
 	return exists
 }
 
-func (s *staticor) appAssetFile(requested string, c *Ctx) bool {
+func (s *staticor) appAssetFile(requested string, c Ctx) bool {
 	exists := false
 	f, err := s.app.Assets.Get(requested)
 	if err == nil {
@@ -71,7 +71,7 @@ func (s *staticor) appAssetFile(requested string, c *Ctx) bool {
 	return exists
 }
 
-func (s *staticor) Exists(c *Ctx, requested string) bool {
+func (s *staticor) Exists(c Ctx, requested string) bool {
 	exists := s.appStaticFile(requested, c)
 	if !exists {
 		exists = s.appAssetFile(requested, c)
@@ -79,19 +79,23 @@ func (s *staticor) Exists(c *Ctx, requested string) bool {
 	return exists
 }
 
-func (s *staticor) Handle(c *Ctx) {
-	requested := filepath.Base(c.Request.URL.Path)
-	if !s.Exists(c, requested) {
+func (s *staticor) Manage(c Ctx) {
+	if !s.Exists(c, requestedfile(c)) {
 		abortstatic(c)
 	} else {
-		c.RW.WriteHeaderNow()
+		c.Call("headernow")
 	}
 }
 
-func abortstatic(c *Ctx) {
+func requestedfile(c Ctx) string {
+	rq, _ := c.Call("request")
+	return filepath.Base(rq.(*http.Request).URL.Path)
+}
+
+func abortstatic(c Ctx) {
 	c.Call("abort", 404)
 }
 
-func servestatic(c *Ctx, f http.File) {
+func servestatic(c Ctx, f http.File) {
 	c.Call("servefile", f)
 }

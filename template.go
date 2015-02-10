@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/thrisp/djinn"
+	"github.com/thrisp/flotilla/xrr"
 )
 
 type (
@@ -127,5 +128,5 @@ func (fl *Loader) Load(name string) (string, error) {
 			}
 		}
 	}
-	return "", newError("Template %s does not exist", name)
+	return "", xrr.NewError("Template %s does not exist", name)
 }

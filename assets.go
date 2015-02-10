@@ -11,6 +11,8 @@ import (
 	"path"
 	"path/filepath"
 	"time"
+
+	"github.com/thrisp/flotilla/xrr"
 )
 
 type (
@@ -134,7 +136,7 @@ func (fs *AssetFS) GetAsset(requested string) (http.File, error) {
 		f, err := fs.Open(hasasset)
 		return f, err
 	}
-	return nil, newError("asset %s unvailable", requested)
+	return nil, xrr.NewError("asset %s unvailable", requested)
 }
 
 func (fs *AssetFS) Open(name string) (http.File, error) {
@@ -159,7 +161,7 @@ func (a Assets) Get(requested string) (http.File, error) {
 			return f, nil
 		}
 	}
-	return nil, newError("asset %s unavailable", requested)
+	return nil, xrr.NewError("asset %s unavailable", requested)
 }
 
 func (a Assets) GetByte(requested string) ([]byte, error) {
@@ -169,5 +171,5 @@ func (a Assets) GetByte(requested string) ([]byte, error) {
 			return b, nil
 		}
 	}
-	return nil, newError("asset %s unavailable", requested)
+	return nil, xrr.NewError("asset %s unavailable", requested)
 }

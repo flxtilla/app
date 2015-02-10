@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/thrisp/flotilla/xrr"
 )
 
 var (
@@ -93,7 +95,7 @@ func (s Store) parse(reader *bufio.Reader, filename string) (err error) {
 		}
 		section, err = s.parseLine(section, line)
 		if err != nil {
-			return newError("[FLOTILLA] Store configuration parsing: syntax error at '%s:%d'.", filename, lineno)
+			return xrr.NewError("[FLOTILLA] Store configuration parsing: syntax error at '%s:%d'.", filename, lineno)
 		}
 	}
 	return err
@@ -123,7 +125,7 @@ func (s Store) parseLine(section, line string) (string, error) {
 		s.add(section, m[0][1], "")
 		return section, nil
 	}
-	return section, newError("flotilla env conf parse error")
+	return section, xrr.NewError("flotilla env conf parse error")
 }
 
 func (s Store) newKey(section string, key string) string {

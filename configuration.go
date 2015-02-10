@@ -3,6 +3,8 @@ package flotilla
 import (
 	"log"
 	"strings"
+
+	"github.com/thrisp/flotilla/xrr"
 )
 
 var (
@@ -77,7 +79,7 @@ func Mode(mode string, value bool) Configuration {
 				return err
 			}
 		} else {
-			return newError("mode must be Development, Testing, or Production; not %s", mode)
+			return xrr.NewError("mode must be Development, Testing, or Production; not %s", mode)
 		}
 		return nil
 	}
