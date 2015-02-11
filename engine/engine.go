@@ -59,26 +59,6 @@ func (e *engine) Handle(method string, path string, r Rule) {
 	root.addRoute(path, r)
 }
 
-type Result struct {
-	*Recorder
-	xrr.Erroror
-	Code   int
-	Rule   Rule
-	Params Params
-	TSR    bool
-}
-
-func NewResult(code int, rule Rule, params Params, tsr bool) *Result {
-	return &Result{
-		Recorder: newRecorder(),
-		Erroror:  xrr.DefaultErroror(),
-		Code:     code,
-		Rule:     rule,
-		Params:   params,
-		TSR:      tsr,
-	}
-}
-
 func (e *engine) lookup(method, path string) *Result {
 	if root := e.trees[method]; root != nil {
 		if rule, params, tsr := root.getValue(path); rule != nil {
@@ -98,7 +78,7 @@ func (e *engine) lookup(method, path string) *Result {
 				return NewResult(code, func(rw http.ResponseWriter, rq *http.Request, rs *Result) {
 					rq.URL.Path = newpath
 					http.Redirect(rw, rq, rq.URL.String(), code)
-				}, nil, false)
+				}, nil, tsr)
 			}
 			if e.RedirectFixedPath {
 				fixedPath, found := root.findCaseInsensitivePath(
@@ -109,7 +89,7 @@ func (e *engine) lookup(method, path string) *Result {
 					return NewResult(code, func(rw http.ResponseWriter, rq *http.Request, rs *Result) {
 						rq.URL.Path = string(fixedPath)
 						http.Redirect(rw, rq, rq.URL.String(), code)
-					}, nil, false)
+					}, nil, tsr)
 				}
 			}
 		}

@@ -61,7 +61,7 @@ func (s status) first(c Ctx) {
 
 func panicsignal(c Ctx) {
 	for _, p := range Panics(c) {
-		sig := fmt.Sprintf("encountered an internal error: %s\n-----\n%s\n-----\n", p.Err, p.Meta)
+		sig := fmt.Sprintf("encountered an internal error: %s\n-----\n%s\n-----\n", p.Error(), p.Meta)
 		c.Call("panicsignal", sig)
 	}
 }
