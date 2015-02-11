@@ -15,17 +15,28 @@ type Engine interface {
 	ServeHTTP(http.ResponseWriter, *http.Request)
 }
 
-type engine struct {
-	trees                 map[string]*node
+type conf struct {
 	RedirectTrailingSlash bool
 	RedirectFixedPath     bool
-	StatusRule            Rule
+}
+
+type engine struct {
+	*conf
+	trees      map[string]*node
+	StatusRule Rule
+}
+
+func defaultConf() *conf {
+	return &conf{
+		RedirectTrailingSlash: true,
+		RedirectFixedPath:     true,
+	}
 }
 
 func DefaultEngine(status Rule) *engine {
-	return &engine{RedirectTrailingSlash: true,
-		RedirectFixedPath: true,
-		StatusRule:        status,
+	return &engine{
+		conf:       defaultConf(),
+		StatusRule: status,
 	}
 }
 
@@ -49,28 +60,29 @@ func (e *engine) Handle(method string, path string, r Rule) {
 }
 
 type Result struct {
-	xrr.Erroror
 	*Recorder
+	xrr.Erroror
 	Code   int
 	Rule   Rule
 	Params Params
 	TSR    bool
 }
 
-func newResult(code int, rule Rule, params Params, tsr bool) *Result {
-	return &Result{Recorder: newRecorder(),
-		Erroror: xrr.DefaultErroror(),
-		Code:    code,
-		Rule:    rule,
-		Params:  params,
-		TSR:     tsr,
+func NewResult(code int, rule Rule, params Params, tsr bool) *Result {
+	return &Result{
+		Recorder: newRecorder(),
+		Erroror:  xrr.DefaultErroror(),
+		Code:     code,
+		Rule:     rule,
+		Params:   params,
+		TSR:      tsr,
 	}
 }
 
 func (e *engine) lookup(method, path string) *Result {
 	if root := e.trees[method]; root != nil {
 		if rule, params, tsr := root.getValue(path); rule != nil {
-			return newResult(200, rule, params, tsr)
+			return NewResult(200, rule, params, tsr)
 		} else if method != "CONNECT" && path != "/" {
 			code := 301
 			if method != "GET" {
@@ -83,7 +95,7 @@ func (e *engine) lookup(method, path string) *Result {
 				} else {
 					newpath = path + "/"
 				}
-				return newResult(code, func(rw http.ResponseWriter, rq *http.Request, rs *Result) {
+				return NewResult(code, func(rw http.ResponseWriter, rq *http.Request, rs *Result) {
 					rq.URL.Path = newpath
 					http.Redirect(rw, rq, rq.URL.String(), code)
 				}, nil, false)
@@ -94,7 +106,7 @@ func (e *engine) lookup(method, path string) *Result {
 					e.RedirectTrailingSlash,
 				)
 				if found {
-					return newResult(code, func(rw http.ResponseWriter, rq *http.Request, rs *Result) {
+					return NewResult(code, func(rw http.ResponseWriter, rq *http.Request, rs *Result) {
 						rq.URL.Path = string(fixedPath)
 						http.Redirect(rw, rq, rq.URL.String(), code)
 					}, nil, false)
@@ -117,10 +129,10 @@ func (e *engine) lookup(method, path string) *Result {
 func (e *engine) status(code int) *Result {
 	if root := e.trees["STATUS"]; root != nil {
 		if rule, params, tsr := root.getValue(strconv.Itoa(code)); rule != nil {
-			return newResult(code, rule, params, tsr)
+			return NewResult(code, rule, params, tsr)
 		}
 	}
-	return newResult(code, e.defaultStatus(code), nil, false)
+	return NewResult(code, e.defaultStatus(code), nil, false)
 }
 
 func (e *engine) defaultStatus(code int) Rule {

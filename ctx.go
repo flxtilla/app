@@ -178,12 +178,7 @@ func (c *ctx) rerun(managers ...Manage) {
 		c.index = -1
 	}
 	c.managers = managers
-	// calling Run() here would be preferable, but causes a double render with an undetermined cause; its a bug
-	c.index++
-	x := int8(len(c.managers))
-	for ; c.index < x; c.index++ {
-		c.managers[c.index](c)
-	}
+	c.Next()
 }
 
 func (c *ctx) push(fn Manage) {

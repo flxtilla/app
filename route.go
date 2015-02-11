@@ -17,6 +17,8 @@ var (
 )
 
 type (
+	MakeCtxFunc func(w http.ResponseWriter, rq *http.Request, rs *engine.Result, rt *Route) Ctx
+
 	Route struct {
 		registered bool
 		blueprint  *Blueprint
@@ -26,7 +28,7 @@ type (
 		path       string
 		managers   []Manage
 		Name       string
-		mkctx      func(w http.ResponseWriter, rq *http.Request, rs *engine.Result, rt *Route) Ctx
+		MakeCtx    MakeCtxFunc
 	}
 
 	Routes map[string]*Route
@@ -71,7 +73,7 @@ func (rt *Route) App() *App {
 }
 
 func (rt *Route) rule(rw http.ResponseWriter, rq *http.Request, rs *engine.Result) {
-	c := rt.mkctx(rw, rq, rs, rt)
+	c := rt.MakeCtx(rw, rq, rs, rt)
 	c.Run()
 	c.Cancel()
 }

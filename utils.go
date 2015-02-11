@@ -148,3 +148,37 @@ func validExtension(fn interface{}) error {
 	}
 	return xrr.NewError("function %q is not a valid Flotilla Ctx function; must be a function and return must be 1 value, or 1 value and 1 error value", fn)
 }
+
+func StatusColor(code int) (color string) {
+	switch {
+	case code >= 200 && code <= 299:
+		color = green
+	case code >= 300 && code <= 399:
+		color = white
+	case code >= 400 && code <= 499:
+		color = yellow
+	default:
+		color = red
+	}
+	return color
+}
+
+func MethodColor(method string) (color string) {
+	switch {
+	case method == "GET":
+		color = blue
+	case method == "POST":
+		color = cyan
+	case method == "PUT":
+		color = yellow
+	case method == "DELETE":
+		color = red
+	case method == "PATCH":
+		color = green
+	case method == "HEAD":
+		color = magenta
+	case method == "OPTIONS":
+		color = white
+	}
+	return color
+}

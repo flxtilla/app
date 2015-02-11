@@ -21,12 +21,13 @@ func Empty(name string) *App {
 	return &App{name: name}
 }
 
-// Base returns an intialized App with no configuration.
-func Base(name string) *App {
+// Base returns an intialized App with Configuration immediately applied.
+func Base(name string, conf ...Configuration) *App {
 	app := Empty(name)
-	app.Engine = engine.DefaultEngine(StatusRule(app))
+	runConf(app, conf...)
 	app.Env = newEnv(app)
 	app.Messaging = newMessaging()
+	runConf(app, configureFirst...)
 	return app
 }
 

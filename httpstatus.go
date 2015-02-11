@@ -162,7 +162,7 @@ func HasCustomStatus(a *App, code int) (*status, bool) {
 	return s, true
 }
 
-func makehttpstatus(a *App) func(*ctx, int) error {
+func statusfunc(a *App) func(*ctx, int) error {
 	return func(c *ctx, code int) error {
 		s, _ := HasCustomStatus(a, code)
 		c.rerun(s.managers...)

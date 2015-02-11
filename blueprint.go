@@ -21,6 +21,7 @@ type (
 		Prefix   string
 		Routes
 		Managers []Manage
+		MakeCtx  MakeCtxFunc
 	}
 )
 
@@ -197,12 +198,19 @@ func (b *Blueprint) push(register func(), route *Route) {
 	}
 }
 
+func (b *Blueprint) mkctxfunc() MakeCtxFunc {
+	if b.MakeCtx == nil {
+		return b.app.Ctx()
+	}
+	return b.MakeCtx
+}
+
 func (b *Blueprint) register(route *Route) {
 	route.blueprint = b
 	route.managers = b.combineManagers(route.managers)
 	route.path = b.pathFor(route.base)
 	route.registered = true
-	route.mkctx = b.app.Ctx()
+	route.MakeCtx = b.mkctxfunc()
 }
 
 func (b *Blueprint) Manage(route *Route) {

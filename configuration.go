@@ -4,10 +4,15 @@ import (
 	"log"
 	"strings"
 
+	"github.com/thrisp/flotilla/engine"
 	"github.com/thrisp/flotilla/xrr"
 )
 
 var (
+	configureFirst = []Configuration{
+		cengine,
+	}
+
 	configureLast = []Configuration{
 		cstatic,
 		cblueprints,
@@ -27,22 +32,37 @@ type (
 )
 
 func newConfig(cnf ...Configuration) *Config {
-	return &Config{Configured: false, Configuration: cnf, deferred: configureLast}
+	return &Config{
+		Configured:    false,
+		Configuration: cnf,
+		deferred:      configureLast,
+	}
 }
 
-func (a *App) Configure(c ...Configuration) error {
+func runConf(a *App, cnf ...Configuration) error {
 	var err error
-	a.Configuration = append(a.Configuration, c...)
-	for _, fn := range a.Configuration {
+	for _, fn := range cnf {
 		err = fn(a)
 	}
-	for _, fn := range a.Config.deferred {
-		err = fn(a)
-	}
+	return err
+}
+
+func (a *App) Configure(cnf ...Configuration) error {
+	var err error
+	a.Configuration = append(a.Configuration, cnf...)
+	err = runConf(a, a.Configuration...)
+	err = runConf(a, a.Config.deferred...)
 	if err != nil {
 		return err
 	}
 	a.Configured = true
+	return nil
+}
+
+func cengine(a *App) error {
+	if a.Engine == nil {
+		a.Engine = engine.DefaultEngine(StatusRule(a))
+	}
 	return nil
 }
 
@@ -102,17 +122,17 @@ func EnvItem(items ...string) Configuration {
 	}
 }
 
-//func CtxExtension(name string, fn interface{}) Configuration {
-//	return func(a *App) error {
-//		return a.Env.AddExtension(name, fn)
-//	}
-//}
+func Extension(name string, fn interface{}) Configuration {
+	return func(a *App) error {
+		return a.Env.AddExtension(name, fn)
+	}
+}
 
-//func CtxExtensions(fns map[string]interface{}) Configuration {
-//	return func(a *App) error {
-//		return a.Env.AddExtensions(fns)
-//	}
-//}
+func Extensions(fns map[string]interface{}) Configuration {
+	return func(a *App) error {
+		return a.Env.AddExtensions(fns)
+	}
+}
 
 func Templating(t Templator) Configuration {
 	return func(a *App) error {
@@ -152,7 +172,6 @@ func CtxProcessors(fns map[string]interface{}) Configuration {
 func Logger(l *log.Logger) Configuration {
 	return func(a *App) error {
 		a.Messaging.Logger = l
-		//e.SetConfBool("LoggingOn", true)
 		return nil
 	}
 }

@@ -25,12 +25,7 @@ func cookies(c *ctx) map[string]*http.Cookie {
 	return ret
 }
 
-func Cookies(c *ctx) map[string]*http.Cookie {
-	ret, _ := c.Call("cookies", c)
-	return ret.(map[string]*http.Cookie)
-}
-
-func ReadCookies(c *ctx) map[string]string {
+func readcookies(c *ctx) map[string]string {
 	ret := make(map[string]string)
 	cks := cookies(c)
 	for k, v := range cks {
@@ -79,9 +74,8 @@ func cookie(c *ctx, secure bool, name string, value string, opts []interface{}) 
 	return nil
 }
 
-func Cookie(c *ctx, name string, value string, opts ...interface{}) error {
-	_, err := c.Call("cookie", c, false, name, value, opts)
-	return err
+func securecookie(c *ctx, name string, value string, opts ...interface{}) error {
+	return cookie(c, true, name, value, opts)
 }
 
 func securevalue(secret string, value string) string {
@@ -137,9 +131,4 @@ func basiccookie(name string, value string, opts ...interface{}) string {
 		fmt.Fprintf(&b, "; HttpOnly")
 	}
 	return b.String()
-}
-
-func SecureCookie(c *ctx, name string, value string, opts ...interface{}) error {
-	_, err := c.Call("cookie", c, true, name, value, opts)
-	return err
 }

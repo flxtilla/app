@@ -39,7 +39,8 @@ func BuiltInExtensions(a *App) map[string]interface{} {
 		"abort":           abort,
 		"cookie":          cookie,
 		"cookies":         cookies,
-		"env":             envquery(a),
+		"deletesession":   deletesession,
+		"env":             envqueryfunc(a),
 		"files":           files,
 		"flash":           flash,
 		"flashes":         flashes,
@@ -55,17 +56,20 @@ func BuiltInExtensions(a *App) map[string]interface{} {
 		"panics":          panics,
 		"panicsignal":     panicsignalfunc(a),
 		"push":            push,
+		"readcoookies":    readcookies,
 		"redirect":        redirect,
 		"request":         currentrequest,
 		"release":         releasesession,
 		"rendertemplate":  rendertemplatefunc(a),
+		"securecookie":    securecookie,
 		"serveplain":      serveplain,
 		"servefile":       servefile,
 		"set":             setdata,
+		"session":         returnsession,
 		"setsession":      setsession,
 		"start":           startsession,
-		"status":          makehttpstatus(a),
-		"store":           storequery(a),
+		"status":          statusfunc(a),
+		"store":           storequeryfunc(a),
 		"writetoresponse": writetoresponse,
 		"urlfor":          urlforfunc(a),
 	}
@@ -233,7 +237,7 @@ func headermodify(c *ctx, action string, values ...[]string) error {
 	return nil
 }
 
-func envquery(a *App) func(*ctx, string) interface{} {
+func envqueryfunc(a *App) func(*ctx, string) interface{} {
 	return func(c *ctx, item string) interface{} {
 		switch item {
 		case "store":
@@ -248,7 +252,7 @@ func envquery(a *App) func(*ctx, string) interface{} {
 	}
 }
 
-func storequery(a *App) func(*ctx, string) (*StoreItem, error) {
+func storequeryfunc(a *App) func(*ctx, string) (*StoreItem, error) {
 	return func(c *ctx, key string) (*StoreItem, error) {
 		if item, ok := a.Env.Store[key]; ok {
 			return item, nil
@@ -266,12 +270,20 @@ func startsession(c *ctx, s *session.Manager) error {
 	return nil
 }
 
+func returnsession(c *ctx) session.SessionStore {
+	return c.Session
+}
+
 func getsession(c *ctx, key string) interface{} {
 	return c.Session.Get(key)
 }
 
 func setsession(c *ctx, key string, value interface{}) error {
 	return c.Session.Set(key, value)
+}
+
+func deletesession(c *ctx, key string) error {
+	return c.Session.Delete(key)
 }
 
 func releasesession(c *ctx) error {

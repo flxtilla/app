@@ -1,4 +1,4 @@
-// Package xrr contains various functions for error handling
+// Package xrr contains common error handling functionality for flotilla.
 package xrr
 
 import (
