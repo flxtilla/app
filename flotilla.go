@@ -21,7 +21,7 @@ func Empty(name string) *App {
 	return &App{name: name}
 }
 
-// Base returns an intialized App with Configuration immediately applied.
+// Base returns an intialized App with provided Configuration immediately applied.
 func Base(name string, conf ...Configuration) *App {
 	app := Empty(name)
 	runConf(app, conf...)

@@ -12,18 +12,31 @@ import (
 	"github.com/thrisp/flotilla/xrr"
 )
 
+// a Manage function is for managing application and handler context between
+// any number of routes, handlers, or application specific functions.
 type Manage func(Ctx)
 
+// Ctx is a context interface passing application and handler context.
 type Ctx interface {
 	Extensor
+
+	// Run is an function that starts and cycles through anything the Ctx needs
+	// to do to complete its functionality.
 	Run()
+
+	// Next executes the pending handlers, managers, or functions in the chain
+	// inside the calling Ctx.
 	Next()
+
+	// Cancel is called to finalize the Ctx in any way needed, e.g.
+	// post-processing or logging &signalling
 	Cancel()
 }
 
 var Canceled = errors.New("flotilla.Ctx canceled")
 
-func (a *App) Ctx() func(rw http.ResponseWriter, rq *http.Request, rs *engine.Result, rt *Route) Ctx {
+// App.Ctx is the default function for making a default ctx fitting the Ctx interface.
+func (a *App) Ctx() MakeCtxFunc {
 	return func(rw http.ResponseWriter, rq *http.Request, rs *engine.Result, rt *Route) Ctx {
 		c := NewCtx(a.extensions, rs)
 		c.reset(rq, rw, rt.managers)
@@ -128,6 +141,8 @@ func emptyCtx() *ctx {
 	return &ctx{handlers: defaulthandlers(), Erroror: xrr.DefaultErroror()}
 }
 
+// NewCtx returns a default ctx, given a map of potential Extensions and an
+// Engine Result.
 func NewCtx(ext map[string]reflect.Value, rs *engine.Result) *ctx {
 	c := emptyCtx()
 	c.Result = rs
@@ -185,6 +200,8 @@ func (c *ctx) push(fn Manage) {
 	c.deferred = append(c.deferred, fn)
 }
 
+// CheckStore is returns a StoreItem and a boolean indicating existence provided
+// the current Ctx and a key string.
 func CheckStore(c Ctx, key string) (*StoreItem, bool) {
 	if item, err := c.Call("store", c, key); err == nil {
 		return item.(*StoreItem), true

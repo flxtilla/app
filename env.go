@@ -18,12 +18,15 @@ var (
 )
 
 type (
+	// Modes configure specific modes for later reference in the App; unless set,
+	// an App defaults to Development true, Production false, and Testing false.
 	Modes struct {
 		Development bool
 		Production  bool
 		Testing     bool
 	}
 
+	// Env is the primary environment reference for an App.
 	Env struct {
 		Mode *Modes
 		Store
@@ -45,6 +48,7 @@ func newEnv(a *App) *Env {
 	return e
 }
 
+// MergeEnv merges the provided Env with the existing Env.
 func (env *Env) MergeEnv(other *Env) {
 	env.MergeStore(other.Store)
 	for _, fs := range other.Assets {
@@ -55,6 +59,7 @@ func (env *Env) MergeEnv(other *Env) {
 	env.MergeExtensions(other.extensions)
 }
 
+// MergeStore merges the provided Store with the existing Env Store.
 func (env *Env) MergeStore(other Store) {
 	for k, v := range other {
 		if !v.defaultvalue {
@@ -69,6 +74,8 @@ func defaultModes() *Modes {
 	return &Modes{true, false, false}
 }
 
+// SetMode sets the provided Modes witht the provided boolean value.
+// e.g. env.SetMode("Production", true)
 func (env *Env) SetMode(mode string, value bool) error {
 	m := reflect.ValueOf(env.Mode).Elem().FieldByName(mode)
 	if m.CanSet() {
@@ -78,30 +85,36 @@ func (env *Env) SetMode(mode string, value bool) error {
 	return xrr.NewError("env could not be set to %s", mode)
 }
 
+// CurrentMode returns Modes specific to the App the provided Ctx is running within.
 func CurrentMode(c Ctx) *Modes {
 	m, _ := c.Call("mode")
 	return m.(*Modes)
 }
 
-func (env *Env) CtxProcessor(name string, fn interface{}) {
+// AddCtxProcesor adds a ctxprocessor function with the name and function interface.
+func (env *Env) AddCtxProcessor(name string, fn interface{}) {
 	if env.ctxprocessors == nil {
 		env.ctxprocessors = make(map[string]reflect.Value)
 	}
 	env.ctxprocessors[name] = valueFunc(fn)
 }
 
-func (env *Env) CtxProcessors(fns map[string]interface{}) {
+// Add AddCtxProcessors adds ctxprocessor functions from a map of string keyed interfaces.
+func (env *Env) AddCtxProcessors(fns map[string]interface{}) {
 	for k, v := range fns {
-		env.CtxProcessor(k, v)
+		env.AddCtxProcessor(k, v)
 	}
 }
 
+// MergeExtensions merges a map of string keyed reflect.Value functions with
+// the Env extensions.
 func (env *Env) MergeExtensions(fns map[string]reflect.Value) {
 	for k, v := range fns {
 		env.extensions[k] = v
 	}
 }
 
+// AddExtension adds an extension function with the name and function interface.
 func (env *Env) AddExtension(name string, fn interface{}) error {
 	if env.extensions == nil {
 		env.extensions = make(map[string]reflect.Value)
@@ -115,6 +128,7 @@ func (env *Env) AddExtension(name string, fn interface{}) error {
 	return err
 }
 
+// AddExtensions adds extension functions from a map of string keyed interfaces.
 func (env *Env) AddExtensions(fns map[string]interface{}) error {
 	for k, v := range fns {
 		err := env.AddExtension(k, v)
@@ -125,6 +139,7 @@ func (env *Env) AddExtensions(fns map[string]interface{}) error {
 	return nil
 }
 
+// AddTplFunc adds a template function with the name and function interface.
 func (env *Env) AddTplFunc(name string, fn interface{}) {
 	if env.tplfunctions == nil {
 		env.tplfunctions = make(map[string]interface{})
@@ -132,6 +147,7 @@ func (env *Env) AddTplFunc(name string, fn interface{}) {
 	env.tplfunctions[name] = fn
 }
 
+// AddTplFuncs adds template functions from a map of string keyed interfaces.
 func (env *Env) AddTplFuncs(fns map[string]interface{}) {
 	for k, v := range fns {
 		env.AddTplFunc(k, v)
@@ -154,6 +170,7 @@ func (env *Env) defaultsessionmanager() *session.Manager {
 	return d
 }
 
+// SessionInit intializes the SessionManager stored with the Env.
 func (env *Env) SessionInit() {
 	if env.SessionManager == nil {
 		env.SessionManager = env.defaultsessionmanager()
@@ -161,6 +178,7 @@ func (env *Env) SessionInit() {
 	go env.SessionManager.GC()
 }
 
+// CustomStatus sets a custom status keyed by integer within the Env reference.
 func (env *Env) CustomStatus(s *status) {
 	if env.customstatus == nil {
 		env.customstatus = make(map[int]*status)

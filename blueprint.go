@@ -14,6 +14,7 @@ type (
 		held       []*Route
 	}
 
+	// Blueprint is a common grouping of Routes.
 	Blueprint struct {
 		*setupstate
 		app      *App
@@ -25,6 +26,7 @@ type (
 	}
 )
 
+// Blueprints returns a flat array of Blueprints attached to the App.
 func (app *App) Blueprints() []*Blueprint {
 	type IterC func(bs []*Blueprint, fn IterC)
 
@@ -44,6 +46,7 @@ func (app *App) Blueprints() []*Blueprint {
 	return bps
 }
 
+// Given any number of Blueprints, RegisterBlueprints registers each with the App.
 func (app *App) RegisterBlueprints(blueprints ...*Blueprint) {
 	for _, blueprint := range blueprints {
 		if existing, ok := app.existingBlueprint(blueprint.Prefix); ok {
@@ -65,6 +68,8 @@ func (app *App) existingBlueprint(prefix string) (*Blueprint, bool) {
 	return nil, false
 }
 
+// Mount attaches each provided Blueprint to the given string mount point, optionally
+// inheriting from and setting the app primary Blueprint as parent to the given Blueprints.
 func (app *App) Mount(mount string, inherit bool, blueprints ...*Blueprint) error {
 	var mbp *Blueprint
 	var mbs []*Blueprint
@@ -100,6 +105,7 @@ func (b *Blueprint) pathFor(path string) string {
 	return joined
 }
 
+// NewBlueprint returns a new Blueprint with the provided string prefix.
 func NewBlueprint(prefix string) *Blueprint {
 	return &Blueprint{setupstate: &setupstate{},
 		Prefix: prefix,
@@ -107,6 +113,7 @@ func NewBlueprint(prefix string) *Blueprint {
 	}
 }
 
+// NewBlueprint returns a new Blueprint as a child of the parent Blueprint.
 func (b *Blueprint) NewBlueprint(component string, managers ...Manage) *Blueprint {
 	prefix := b.pathFor(component)
 
@@ -118,6 +125,7 @@ func (b *Blueprint) NewBlueprint(component string, managers ...Manage) *Blueprin
 	return newb
 }
 
+// Register intergrates App information with the Blueprint.
 func (b *Blueprint) Register(a *App) {
 	b.app = a
 	b.runDeferred()
@@ -148,6 +156,7 @@ func (b *Blueprint) manageExists(outside Manage) bool {
 	return false
 }
 
+// Use adds Manage functions to the Blueprint.
 func (b *Blueprint) Use(managers ...Manage) {
 	for _, manage := range managers {
 		if !b.manageExists(manage) {
@@ -156,6 +165,7 @@ func (b *Blueprint) Use(managers ...Manage) {
 	}
 }
 
+// UseAt adds Manage functions to the Blueprint at the provided index.
 func (b *Blueprint) UseAt(index int, managers ...Manage) {
 	if index > len(b.Managers) {
 		b.Use(managers...)
@@ -213,6 +223,7 @@ func (b *Blueprint) register(route *Route) {
 	route.MakeCtx = b.mkctxfunc()
 }
 
+// Manage adds a route to the Blueprint.
 func (b *Blueprint) Manage(route *Route) {
 	register := func() {
 		b.register(route)

@@ -11,6 +11,7 @@ import (
 )
 
 type (
+	// The Extensor interface provides access to varying functions.
 	Extensor interface {
 		Call(string, ...interface{}) (interface{}, error)
 	}
@@ -118,8 +119,8 @@ func servefile(c *ctx, f http.File) error {
 
 func rendertemplatefunc(a *App) func(*ctx, string, interface{}) error {
 	return func(c *ctx, name string, data interface{}) error {
-		td := NewTemplateData(c, data)
 		c.push(func(pc Ctx) {
+			td := NewTemplateData(c, data)
 			a.Templator.Render(c.RW, name, td)
 		})
 		return nil

@@ -30,12 +30,15 @@ type (
 	}
 )
 
+// TemplatorInit intializes the default Templator if none is listed with the Env.
 func (env *Env) TemplatorInit() {
 	if env.Templator == nil {
 		env.Templator = NewTemplator(env)
 	}
 }
 
+// TemplateDirs updates with the provided and returns existing template
+// directories listed in the Env.
 func (env *Env) TemplateDirs(dirs ...string) []string {
 	storedirs := env.Store["TEMPLATE_DIRECTORIES"].List(dirs...)
 	if env.Templator != nil {
@@ -45,6 +48,7 @@ func (env *Env) TemplateDirs(dirs ...string) []string {
 	return storedirs
 }
 
+// NewTemplator returns a new default templator.
 func NewTemplator(env *Env) *templator {
 	j := &templator{Djinn: djinn.Empty()}
 	j.UpdateTemplateDirs(env.Store["TEMPLATE_DIRECTORIES"].List()...)
@@ -52,10 +56,12 @@ func NewTemplator(env *Env) *templator {
 	return j
 }
 
+// ListTemplateDirs lists template directories attached to the templator.
 func (t *templator) ListTemplateDirs() []string {
 	return t.TemplateDirs
 }
 
+// ListTemplates returns list of templates in hte Templator loaders.
 func (t *templator) ListTemplates() []string {
 	var ret []string
 	for _, l := range t.Djinn.Loaders {
@@ -65,17 +71,21 @@ func (t *templator) ListTemplates() []string {
 	return ret
 }
 
+// UpdateTemplateDirs updatese the templator with the provided string directories.
 func (t *templator) UpdateTemplateDirs(dirs ...string) {
 	for _, dir := range dirs {
 		t.TemplateDirs = doAdd(dir, t.TemplateDirs)
 	}
 }
 
+// newLoader returns a new flotilla Loader.
 func NewLoader(env *Env) *Loader {
 	fl := &Loader{env: env, FileExtensions: []string{".html", ".dji"}}
 	return fl
 }
 
+// ValidFileExtension returns a boolean for extension provided if the flotilla
+// Loader allows the extension type.
 func (fl *Loader) ValidFileExtension(ext string) bool {
 	for _, extension := range fl.FileExtensions {
 		if extension == ext {
@@ -85,6 +95,7 @@ func (fl *Loader) ValidFileExtension(ext string) bool {
 	return false
 }
 
+// AssetTemplates returns templates linked to Assets in the flotilla Loader.
 func (fl *Loader) AssetTemplates() []string {
 	var ret []string
 	for _, assetfs := range fl.env.Assets {
@@ -97,6 +108,7 @@ func (fl *Loader) AssetTemplates() []string {
 	return ret
 }
 
+// ListTemplates  lists templates in the flotilla Loader.
 func (fl *Loader) ListTemplates() interface{} {
 	var ret []string
 	for _, p := range fl.env.TemplateDirs() {
@@ -111,6 +123,7 @@ func (fl *Loader) ListTemplates() interface{} {
 	return ret
 }
 
+// Load a template by string name from the flotilla Loader.
 func (fl *Loader) Load(name string) (string, error) {
 	for _, p := range fl.env.TemplateDirs() {
 		f := filepath.Join(p, name)

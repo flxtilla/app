@@ -34,6 +34,7 @@ type (
 	Routes map[string]*Route
 )
 
+// Routes returns a map of all routes attached to the app.
 func (app *App) Routes() Routes {
 	allroutes := make(Routes)
 	for _, blueprint := range app.Blueprints() {
@@ -57,6 +58,7 @@ func (app *App) existingRoute(route *Route) bool {
 	return false
 }
 
+// Given the blueprint and map of routes, MergeRoutes merges the routes.
 func (app *App) MergeRoutes(blueprint *Blueprint, routes Routes) {
 	for _, route := range routes {
 		if route.static && !app.existingRoute(route) {
@@ -68,16 +70,13 @@ func (app *App) MergeRoutes(blueprint *Blueprint, routes Routes) {
 	}
 }
 
-func (rt *Route) App() *App {
-	return rt.blueprint.app
-}
-
 func (rt *Route) rule(rw http.ResponseWriter, rq *http.Request, rs *engine.Result) {
 	c := rt.MakeCtx(rw, rq, rs, rt)
 	c.Run()
 	c.Cancel()
 }
 
+// NewRoute returns a new route instance with the given method, path, bool, and Manage functions.
 func NewRoute(method string, path string, static bool, managers []Manage) *Route {
 	rt := &Route{method: method, static: static, managers: managers}
 	if static {
@@ -92,6 +91,7 @@ func NewRoute(method string, path string, static bool, managers []Manage) *Route
 	return rt
 }
 
+// Named returns the route name.
 func (rt *Route) Named() string {
 	name := strings.Split(rt.path, "/")
 	name = append(name, strings.ToLower(rt.method))
@@ -106,6 +106,7 @@ func (rt *Route) Named() string {
 	return strings.Join(name, `\`)
 }
 
+// Url returns a url for the route, provided the string parameters.
 func (rt *Route) Url(params ...string) (*url.URL, error) {
 	paramCount := len(params)
 	i := 0

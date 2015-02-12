@@ -7,9 +7,17 @@ import (
 )
 
 type (
+	// Staticor provides an interface to static files for an App.
 	Staticor interface {
+		// StaticDirs any number of strings and returns a string list for
+		// adding to and listing the Staticor directories.
 		StaticDirs(...string) []string
+
+		// Exists takes a Ctx & string to determine if the Staticor can handle the
+		// the file designated by the string.
 		Exists(Ctx, string) bool
+
+		// Manage is a flotilla.Manage function used by the Staticor.
 		Manage(Ctx)
 	}
 
@@ -19,18 +27,22 @@ type (
 	}
 )
 
+// StaticorInit intializes a staticor from the Staticor provided to App.Env.
 func StaticorInit(a *App) {
 	if a.Env.Staticor == nil {
 		a.Env.Staticor = NewStaticor(a)
 	}
 }
 
+// NewStaticor returns a new default flotilla Staticor.
 func NewStaticor(a *App) *staticor {
 	s := &staticor{app: a}
 	s.StaticDirs(s.app.Env.Store["STATIC_DIRECTORIES"].List()...)
 	return s
 }
 
+// StaticDirs takes any number of directories as string, adding them, and returning
+// a string array of static directories in Env.Store
 func (env *Env) StaticDirs(dirs ...string) []string {
 	storedirs := env.Store["STATIC_DIRECTORIES"].List(dirs...)
 	if env.Staticor != nil {

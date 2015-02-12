@@ -157,14 +157,14 @@ func TemplateFunctions(fns map[string]interface{}) Configuration {
 
 func CtxProcessor(name string, fn interface{}) Configuration {
 	return func(a *App) error {
-		a.CtxProcessor(name, fn)
+		a.AddCtxProcessor(name, fn)
 		return nil
 	}
 }
 
 func CtxProcessors(fns map[string]interface{}) Configuration {
 	return func(a *App) error {
-		a.CtxProcessors(fns)
+		a.AddCtxProcessors(fns)
 		return nil
 	}
 }

@@ -72,6 +72,7 @@ func panicserve(c Ctx, b bytes.Buffer) {
 	_, _ = c.Call("writetoresponse", []byte(servePanic))
 }
 
+// Panics returns any panic type error messages attached to the Ctx.
 func Panics(c Ctx) xrr.ErrorMsgs {
 	panics, _ := c.Call("panics")
 	return panics.(xrr.ErrorMsgs)
@@ -102,6 +103,8 @@ func panictobuffer(c Ctx) bytes.Buffer {
 	return auffer
 }
 
+// IsWritten returns a boolean value indicating whether the Ctx ResponseWriter
+// has been written to at the point in time the function is called.
 func IsWritten(c Ctx) bool {
 	ret, _ := c.Call("iswritten")
 	return ret.(bool)
@@ -124,6 +127,7 @@ func (s status) last(c Ctx) {
 	})
 }
 
+// StatusRule provides a default engine.Rule used as a status by the Engine.
 func StatusRule(a *App) engine.Rule {
 	return func(rw http.ResponseWriter, rq *http.Request, rs *engine.Result) {
 		s := newStatus(rs.Code)
@@ -134,6 +138,8 @@ func StatusRule(a *App) engine.Rule {
 	}
 }
 
+// CustomStatusRule provides a custom engine Rule with a provided set of Manage
+// to be used by the Engine in return a status.
 func CustomStatusRule(a *App, code int, m ...Manage) engine.Rule {
 	s := newStatus(code, m...)
 	a.CustomStatus(s)
@@ -154,6 +160,8 @@ func newStatus(code int, m ...Manage) *status {
 	return s
 }
 
+// HasCustomStatus returns a status and a boolean indicating existence from the
+// provided App Env.
 func HasCustomStatus(a *App, code int) (*status, bool) {
 	s, ok := a.Env.customstatus[code]
 	if !ok {
