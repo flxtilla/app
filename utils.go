@@ -1,7 +1,6 @@
 package flotilla
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 
@@ -52,7 +51,7 @@ func isFunc(fn interface{}) bool {
 
 func equalFunc(a, b interface{}) bool {
 	if !isFunc(a) || !isFunc(b) {
-		panic("funcEqual: type error!")
+		panic("flotilla : funcEqual -- type error!")
 	}
 	av := reflect.ValueOf(&a).Elem()
 	bv := reflect.ValueOf(&b).Elem()
@@ -62,10 +61,10 @@ func equalFunc(a, b interface{}) bool {
 func valueFunc(fn interface{}) reflect.Value {
 	v := reflect.ValueOf(fn)
 	if v.Kind() != reflect.Func {
-		panic(xrr.NewError("Provided:(%+v, type: %T), but it is not a function", fn, fn))
+		panic(xrr.NewError("flotilla : Provided (%+v, type: %T), but it is not a function", fn, fn))
 	}
 	if !goodFunc(v.Type()) {
-		panic(xrr.NewError("Cannot use function %q with %d results\nreturn must be 1 value, or 1 value and 1 error value", fn, v.Type().NumOut()))
+		panic(xrr.NewError("flotilla: Cannot use function %q with %d results\nreturn must be 1 value, or 1 value and 1 error value", fn, v.Type().NumOut()))
 	}
 	return v
 }
@@ -102,12 +101,12 @@ func call(fn reflect.Value, args ...interface{}) (interface{}, error) {
 	var dddType reflect.Type
 	if typ.IsVariadic() {
 		if len(args) < numIn-1 {
-			return nil, fmt.Errorf("wrong number of args: got %d want at least %d", len(args), numIn-1)
+			return nil, xrr.NewError("flotilla : wrong number of args -- got %d want at least %d", len(args), numIn-1)
 		}
 		dddType = typ.In(numIn - 1).Elem()
 	} else {
 		if len(args) != numIn {
-			return nil, fmt.Errorf("wrong number of args: got %d want %d", len(args), numIn)
+			return nil, xrr.NewError("flotilla : wrong number of args -- got %d want %d", len(args), numIn)
 		}
 	}
 	argv := make([]reflect.Value, len(args))
@@ -124,7 +123,7 @@ func call(fn reflect.Value, args ...interface{}) (interface{}, error) {
 			value = reflect.Zero(argType)
 		}
 		if !value.Type().AssignableTo(argType) {
-			return nil, fmt.Errorf("arg %d has type %s; should be %s", i, value.Type(), argType)
+			return nil, xrr.NewError("flotilla : arg %d has type %s -- should be %s", i, value.Type(), argType)
 		}
 		argv[i] = value
 	}

@@ -49,17 +49,14 @@ func (app *App) Blueprints() []*Blueprint {
 // Given any number of Blueprints, RegisterBlueprints registers each with the App.
 func (app *App) RegisterBlueprints(blueprints ...*Blueprint) {
 	for _, blueprint := range blueprints {
-		if existing, ok := app.existingBlueprint(blueprint.Prefix); ok {
-			existing.Use(blueprint.Managers...)
-			app.MergeRoutes(existing, blueprint.Routes)
-		} else {
+		blueprint.Register(app)
+		if _, exists := app.ExistingBlueprint(blueprint.Prefix); !exists {
 			app.children = append(app.children, blueprint)
-			blueprint.Register(app)
 		}
 	}
 }
 
-func (app *App) existingBlueprint(prefix string) (*Blueprint, bool) {
+func (app *App) ExistingBlueprint(prefix string) (*Blueprint, bool) {
 	for _, b := range app.Blueprints() {
 		if b.Prefix == prefix {
 			return b, true
@@ -70,29 +67,24 @@ func (app *App) existingBlueprint(prefix string) (*Blueprint, bool) {
 
 // Mount attaches each provided Blueprint to the given string mount point, optionally
 // inheriting from and setting the app primary Blueprint as parent to the given Blueprints.
-func (app *App) Mount(mount string, inherit bool, blueprints ...*Blueprint) error {
-	var mbp *Blueprint
-	var mbs []*Blueprint
+func (app *App) Mount(point string, blueprints ...*Blueprint) error {
+	var b []*Blueprint
 	for _, blueprint := range blueprints {
 		if blueprint.registered {
 			return xrr.NewError("only unregistered blueprints may be mounted; %s is already registered", blueprint.Prefix)
 		}
 
-		newprefix := filepath.ToSlash(filepath.Join(mount, blueprint.Prefix))
+		newprefix := filepath.ToSlash(filepath.Join(point, blueprint.Prefix))
 
-		if inherit {
-			mbp = app.NewBlueprint(newprefix)
-		} else {
-			mbp = NewBlueprint(newprefix)
+		nbp := app.NewBlueprint(newprefix)
+
+		for _, rt := range blueprint.setupstate.held {
+			nbp.Manage(rt)
 		}
 
-		for _, route := range blueprint.held {
-			mbp.Manage(route)
-		}
-
-		mbs = append(mbs, mbp)
+		b = append(b, nbp)
 	}
-	app.RegisterBlueprints(mbs...)
+	app.RegisterBlueprints(b...)
 	return nil
 }
 
@@ -107,9 +99,10 @@ func (b *Blueprint) pathFor(path string) string {
 
 // NewBlueprint returns a new Blueprint with the provided string prefix.
 func NewBlueprint(prefix string) *Blueprint {
-	return &Blueprint{setupstate: &setupstate{},
-		Prefix: prefix,
-		Routes: make(Routes),
+	return &Blueprint{
+		setupstate: &setupstate{},
+		Prefix:     prefix,
+		Routes:     make(Routes),
 	}
 }
 
@@ -185,6 +178,15 @@ func (b *Blueprint) UseAt(index int, managers ...Manage) {
 	b.Managers = append(before, after...)
 }
 
+func (b *Blueprint) routeExists(route *Route) bool {
+	for _, r := range b.Routes {
+		if route.path == r.path {
+			return true
+		}
+	}
+	return false
+}
+
 func (b *Blueprint) add(r *Route) {
 	if r.Name != "" {
 		b.Routes[r.Name] = r
@@ -227,8 +229,10 @@ func (b *Blueprint) register(route *Route) {
 func (b *Blueprint) Manage(route *Route) {
 	register := func() {
 		b.register(route)
-		b.add(route)
-		b.app.Handle(route.method, route.path, route.rule)
+		if !b.routeExists(route) {
+			b.add(route)
+			b.app.Handle(route.method, route.path, route.rule)
+		}
 	}
 	b.push(register, route)
 }

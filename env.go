@@ -121,7 +121,6 @@ func (env *Env) AddExtension(name string, fn interface{}) error {
 	}
 	err := validExtension(fn)
 	if err == nil {
-		//fmt.Printf("adding extension...%+v %+v\n", name, fn)
 		env.extensions[name] = valueFunc(fn)
 		return nil
 	}

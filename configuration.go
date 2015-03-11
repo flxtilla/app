@@ -98,10 +98,9 @@ func Mode(mode string, value bool) Configuration {
 			if err != nil {
 				return err
 			}
-		} else {
-			return xrr.NewError("mode must be Development, Testing, or Production; not %s", mode)
+			return nil
 		}
-		return nil
+		return xrr.NewError("mode must be Development, Testing, or Production; not %s", mode)
 	}
 }
 
@@ -141,20 +140,6 @@ func Templating(t Templator) Configuration {
 	}
 }
 
-func TemplateFunction(name string, fn interface{}) Configuration {
-	return func(a *App) error {
-		a.Env.AddTplFunc(name, fn)
-		return nil
-	}
-}
-
-func TemplateFunctions(fns map[string]interface{}) Configuration {
-	return func(a *App) error {
-		a.Env.AddTplFuncs(fns)
-		return nil
-	}
-}
-
 func CtxProcessor(name string, fn interface{}) Configuration {
 	return func(a *App) error {
 		a.AddCtxProcessor(name, fn)
@@ -172,6 +157,13 @@ func CtxProcessors(fns map[string]interface{}) Configuration {
 func Logger(l *log.Logger) Configuration {
 	return func(a *App) error {
 		a.Messaging.Logger = l
+		return nil
+	}
+}
+
+func WithAssets(ast ...*AssetFS) Configuration {
+	return func(a *App) error {
+		a.Env.Assets = append(a.Env.Assets, ast...)
 		return nil
 	}
 }

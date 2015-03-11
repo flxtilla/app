@@ -1,0 +1,10 @@
+{{ extends "layout.html" }}
+
+{{ define "partial_one" }}
+    <div>partial one</div>
+{{ end }}
+
+{{ define "root" }}
+    <div>TEST TEMPLATE</div>
+    {{ template "partial_one" }}
+{{ end }}

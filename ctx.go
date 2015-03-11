@@ -199,12 +199,3 @@ func (c *ctx) rerun(managers ...Manage) {
 func (c *ctx) push(fn Manage) {
 	c.deferred = append(c.deferred, fn)
 }
-
-// CheckStore is returns a StoreItem and a boolean indicating existence provided
-// the current Ctx and a key string.
-func CheckStore(c Ctx, key string) (*StoreItem, bool) {
-	if item, err := c.Call("store", c, key); err == nil {
-		return item.(*StoreItem), true
-	}
-	return nil, false
-}

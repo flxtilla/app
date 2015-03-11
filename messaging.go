@@ -13,12 +13,12 @@ type (
 	// A Signal channel for App messaging.
 	Signals chan Signal
 
-	queue func(string)
+	Queue func(string)
 
 	// Messaging encapsulates signalling & logging in an App.
 	Messaging struct {
 		Signals chan Signal
-		Queues  map[string]queue
+		Queues  map[string]Queue
 		Logger  *log.Logger
 	}
 )
@@ -40,15 +40,15 @@ func (m *Messaging) Out(message string) {
 	m.Logger.Printf(" %s", message)
 }
 
-// Panic immediately logs the provided string, ans sends a FlotillaPanic signal
-// and the message to messging Signals.
+// Panic immediately logs the provided string, and sends a FlotillaPanic signal
+// and the message to messaging Signals.
 func (m *Messaging) Panic(message string) {
 	log.Println(fmt.Errorf("[Flotilla Panic] %s", message))
 	m.Signals <- FlotillaPanic
 	m.Signals <- []byte(message)
 }
 
-// Emit send thes the provided message as a Signal to messaging Signals channel.
+// Emit send the provided message as a Signal to messaging Signals channel.
 func (m *Messaging) Emit(message string) {
 	m.Signals <- []byte(message)
 }
@@ -63,8 +63,8 @@ func (m *Messaging) Send(queue string, message string) {
 	m.Emit(message)
 }
 
-func (m Messaging) defaultqueues() map[string]queue {
-	q := make(map[string]queue)
+func (m Messaging) defaultqueues() map[string]Queue {
+	q := make(map[string]Queue)
 	q["out"] = m.Out
 	q["panic"] = m.Panic
 	q["emit"] = m.Emit

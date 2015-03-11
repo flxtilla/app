@@ -1,0 +1,10 @@
+{{ extends "layout_asset.html" }}
+
+{{ define "asset_partial_one" }}
+    <div>asset partial one</div>
+{{ end}}
+
+{{ define "asset_root" }}
+    <div>TEST ASSET TEMPLATE</div>
+    {{ template "asset_partial_one" }}    
+{{ end }}

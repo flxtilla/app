@@ -3,7 +3,6 @@ package flotilla
 import (
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"reflect"
 
 	"github.com/thrisp/flotilla/session"
@@ -46,7 +45,6 @@ func BuiltInExtensions(a *App) map[string]interface{} {
 		"flash":           flash,
 		"flashes":         flashes,
 		"flashed":         flashed,
-		"form":            form,
 		"get":             getdata,
 		"getsession":      getsession,
 		"headernow":       headernow,
@@ -183,10 +181,10 @@ func flashed(c *ctx) map[string]string {
 	return ret
 }
 
-func form(c *ctx) url.Values {
-	//c.Request.ParseMultipartForm(e.app.Env.Store["UPLOAD_SIZE"].Int64())
-	return c.Request.Form
-}
+//func form(c *ctx) url.Values {
+//c.Request.ParseMultipartForm(e.app.Env.Store["UPLOAD_SIZE"].Int64())
+//return c.Request.Form
+//}
 
 func files(c *ctx) RequestFiles {
 	if c.Request.MultipartForm.File != nil {
@@ -262,6 +260,15 @@ func storequeryfunc(a *App) func(*ctx, string) (*StoreItem, error) {
 	}
 }
 
+// CheckStore is returns a StoreItem and a boolean indicating existence provided
+// the current Ctx and a key string.
+func CheckStore(c Ctx, key string) (*StoreItem, bool) {
+	if item, err := c.Call("store", key); err == nil {
+		return item.(*StoreItem), true
+	}
+	return nil, false
+}
+
 func startsession(c *ctx, s *session.Manager) error {
 	var err error
 	c.Session, err = s.SessionStart(c.RW, c.Request)
@@ -307,8 +314,7 @@ func push(c *ctx, m Manage) error {
 
 func panics(c *ctx) xrr.ErrorMsgs {
 	return c.Result.Errors().ByType(xrr.ErrorTypePanic)
-	//combine with
-	//return c.Errors().ByType(xrr.ErrorTypePanic)
+	// ? combine with c.Errors().ByType(xrr.ErrorTypePanic)
 }
 
 func panicsignalfunc(a *App) func(c *ctx, s string) error {

@@ -60,9 +60,11 @@ func (s status) first(c Ctx) {
 }
 
 func panicsignal(c Ctx) {
-	for _, p := range Panics(c) {
-		sig := fmt.Sprintf("encountered an internal error: %s\n-----\n%s\n-----\n", p.Error(), p.Meta)
-		c.Call("panicsignal", sig)
+	if !CurrentMode(c).Testing {
+		for _, p := range Panics(c) {
+			sig := fmt.Sprintf("encountered an internal error: %s\n-----\n%s\n-----\n", p.Error(), p.Meta)
+			c.Call("panicsignal", sig)
+		}
 	}
 }
 
@@ -163,11 +165,10 @@ func newStatus(code int, m ...Manage) *status {
 // HasCustomStatus returns a status and a boolean indicating existence from the
 // provided App Env.
 func HasCustomStatus(a *App, code int) (*status, bool) {
-	s, ok := a.Env.customstatus[code]
-	if !ok {
-		return newStatus(code), false
+	if s, ok := a.Env.customstatus[code]; ok {
+		return s, true
 	}
-	return s, true
+	return newStatus(code), false
 }
 
 func statusfunc(a *App) func(*ctx, int) error {

@@ -49,27 +49,6 @@ func (app *App) Routes() Routes {
 	return allroutes
 }
 
-func (app *App) existingRoute(route *Route) bool {
-	for _, r := range app.Routes() {
-		if route.path == r.path {
-			return true
-		}
-	}
-	return false
-}
-
-// Given the blueprint and map of routes, MergeRoutes merges the routes.
-func (app *App) MergeRoutes(blueprint *Blueprint, routes Routes) {
-	for _, route := range routes {
-		if route.static && !app.existingRoute(route) {
-			blueprint.STATIC(route.path)
-		}
-		if !route.static && !app.existingRoute(route) {
-			blueprint.Manage(route)
-		}
-	}
-}
-
 func (rt *Route) rule(rw http.ResponseWriter, rq *http.Request, rs *engine.Result) {
 	c := rt.MakeCtx(rw, rq, rs, rt)
 	c.Run()

@@ -1,3 +1,5 @@
+// package engine provides an interface for flotilla package routing in addition
+// to a default routing engine used by default flotilla app instances.
 package engine
 
 import (
