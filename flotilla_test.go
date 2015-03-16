@@ -70,7 +70,7 @@ func testRouteOK(method string, t *testing.T) {
 	performFor(p)
 
 	if passed == false {
-		t.Errorf(method + " route handler was not invoked.")
+		t.Errorf("Route handler %s was not invoked.", method)
 	}
 }
 
@@ -104,7 +104,7 @@ func testRouteNotOK(method string, t *testing.T) {
 	performFor(p)
 
 	if passed == true {
-		t.Errorf(method + " route handler was invoked, when it should not")
+		t.Errorf("Route handler %s was not invoked.", method)
 	}
 }
 

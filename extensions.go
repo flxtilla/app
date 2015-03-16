@@ -142,13 +142,13 @@ func urlforfunc(a *App) func(*ctx, string, bool, []string) (string, error) {
 
 func flash(c *ctx, category string, message string) error {
 	if fl := c.Session.Get("_flashes"); fl != nil {
-		if fls, ok := fl.(map[string]string); ok {
-			fls[category] = message
+		if fls, ok := fl.(map[string][]string); ok {
+			fls[category] = append(fls[category], message)
 			c.Session.Set("_flashes", fls)
 		}
 	} else {
-		fl := make(map[string]string)
-		fl[category] = message
+		fl := make(map[string][]string)
+		fl[category] = append(fl[category], message)
 		c.Session.Set("_flashes", fl)
 	}
 	return nil
@@ -157,10 +157,10 @@ func flash(c *ctx, category string, message string) error {
 func flashes(c *ctx, categories []string) []string {
 	var ret []string
 	if fl := c.Session.Get("_flashes"); fl != nil {
-		if fls, ok := fl.(map[string]string); ok {
+		if fls, ok := fl.(map[string][]string); ok {
 			for k, v := range fls {
 				if existsIn(k, categories) {
-					ret = append(ret, v)
+					ret = v //append(ret, v)
 					delete(fls, k)
 				}
 			}
@@ -170,10 +170,10 @@ func flashes(c *ctx, categories []string) []string {
 	return ret
 }
 
-func flashed(c *ctx) map[string]string {
-	var ret map[string]string
+func flashed(c *ctx) map[string][]string {
+	var ret map[string][]string
 	if fl := c.Session.Get("_flashes"); fl != nil {
-		if fls, ok := fl.(map[string]string); ok {
+		if fls, ok := fl.(map[string][]string); ok {
 			ret = fls
 		}
 	}

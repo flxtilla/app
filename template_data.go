@@ -35,17 +35,17 @@ func NewTemplateData(c *ctx, any interface{}) TemplateData {
 	return t
 }
 
-func getallflash(c Ctx) map[string]string {
+func getallflash(c Ctx) map[string][]string {
 	ret, _ := c.Call("flashed")
-	return ret.(map[string]string)
+	return ret.(map[string][]string)
 }
 
 func (t TemplateData) Flashes(categories ...string) []string {
 	var ret []string
-	if fls, ok := t["Flash"].(map[string]string); ok {
+	if fls, ok := t["Flash"].(map[string][]string); ok {
 		for k, v := range fls {
 			if existsIn(k, categories) {
-				ret = append(ret, v)
+				ret = v
 			}
 		}
 	}
@@ -56,7 +56,7 @@ func (t TemplateData) UrlFor(route string, external bool, params ...string) stri
 	if c, ok := t["Ctx"].(Ctx); ok {
 		ret, err := c.Call("urlfor", route, external, params)
 		if err != nil {
-			return xrr.NewError(fmt.Sprint("%s", err)).Error()
+			return xrr.NewError(err.Error()).Error()
 		}
 		return ret.(string)
 	}

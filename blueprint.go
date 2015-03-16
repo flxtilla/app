@@ -27,12 +27,12 @@ type (
 )
 
 // Blueprints returns a flat array of Blueprints attached to the App.
-func (app *App) Blueprints() []*Blueprint {
+func (a *App) Blueprints() []*Blueprint {
 	type IterC func(bs []*Blueprint, fn IterC)
 
 	var bps []*Blueprint
 
-	bps = append(bps, app.Blueprint)
+	bps = append(bps, a.Blueprint)
 
 	iter := func(bs []*Blueprint, fn IterC) {
 		for _, x := range bs {
@@ -41,23 +41,23 @@ func (app *App) Blueprints() []*Blueprint {
 		}
 	}
 
-	iter(app.children, iter)
+	iter(a.children, iter)
 
 	return bps
 }
 
 // Given any number of Blueprints, RegisterBlueprints registers each with the App.
-func (app *App) RegisterBlueprints(blueprints ...*Blueprint) {
+func (a *App) RegisterBlueprints(blueprints ...*Blueprint) {
 	for _, blueprint := range blueprints {
-		blueprint.Register(app)
-		if _, exists := app.ExistingBlueprint(blueprint.Prefix); !exists {
-			app.children = append(app.children, blueprint)
+		blueprint.Register(a)
+		if _, exists := a.ExistingBlueprint(blueprint.Prefix); !exists {
+			a.children = append(a.children, blueprint)
 		}
 	}
 }
 
-func (app *App) ExistingBlueprint(prefix string) (*Blueprint, bool) {
-	for _, b := range app.Blueprints() {
+func (a *App) ExistingBlueprint(prefix string) (*Blueprint, bool) {
+	for _, b := range a.Blueprints() {
 		if b.Prefix == prefix {
 			return b, true
 		}
@@ -67,7 +67,7 @@ func (app *App) ExistingBlueprint(prefix string) (*Blueprint, bool) {
 
 // Mount attaches each provided Blueprint to the given string mount point, optionally
 // inheriting from and setting the app primary Blueprint as parent to the given Blueprints.
-func (app *App) Mount(point string, blueprints ...*Blueprint) error {
+func (a *App) Mount(point string, blueprints ...*Blueprint) error {
 	var b []*Blueprint
 	for _, blueprint := range blueprints {
 		if blueprint.registered {
@@ -76,7 +76,7 @@ func (app *App) Mount(point string, blueprints ...*Blueprint) error {
 
 		newprefix := filepath.ToSlash(filepath.Join(point, blueprint.Prefix))
 
-		nbp := app.NewBlueprint(newprefix)
+		nbp := a.NewBlueprint(newprefix)
 
 		for _, rt := range blueprint.setupstate.held {
 			nbp.Manage(rt)
@@ -84,7 +84,7 @@ func (app *App) Mount(point string, blueprints ...*Blueprint) error {
 
 		b = append(b, nbp)
 	}
-	app.RegisterBlueprints(b...)
+	a.RegisterBlueprints(b...)
 	return nil
 }
 

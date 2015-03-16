@@ -2,6 +2,8 @@ package flotilla
 
 import (
 	"bytes"
+	"fmt"
+	"html/template"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,24 +20,70 @@ func testtemplatedirectory() string {
 	return filepath.Join(testlocation(), "resources", "templates")
 }
 
-func stringtemplates(t []string) string {
+func trimtemplates(t []string) []string {
 	var templates []string
 	for _, f := range t {
 		templates = append(templates, filepath.Base(f))
 	}
+	return templates
+}
+
+func stringtemplates(t []string) string {
+	templates := trimtemplates(t)
 	return strings.Join(templates, ",")
 }
 
+var tplfuncs map[string]interface{} = map[string]interface{}{
+	"Hello": func(s string) string { return fmt.Sprintf("Hello World!: %s", s) },
+}
+
+func tstrg(c Ctx) string {
+	return fmt.Sprintf("returned STRING")
+}
+
+func thtml(c Ctx) template.HTML {
+	return "<div>returned HTML</div>"
+}
+
+func tcall(c Ctx) string {
+	return "returned CALL"
+}
+
+var tstctxprc map[string]interface{} = map[string]interface{}{
+	"Hi1": tstrg,
+	"Hi2": thtml,
+	"Hi3": tcall,
+}
+
 func tt(c Ctx) {
-	c.Call("rendertemplate", "test.html", "rendered from test template test.html")
+	ret := make(map[string]interface{})
+	ret["Title"] = "rendered from test template test.html"
+	c.Call("flash", "test_flash", "TEST_FLASH_ONE")
+	c.Call("flash", "test_flash", "TEST_FLASH_TWO")
+	c.Call("set", "set_in_ctx", "SET_IN_CTX")
+	c.Call("rendertemplate", "test.html", ret)
 }
 
 func at(c Ctx) {
 	c.Call("rendertemplate", "test_asset.html", "rendered from test template test_asset.html")
 }
 
+func templatecontains(t *testing.T, body string, mustcontain string) {
+	if !strings.Contains(body, mustcontain) {
+		t.Errorf(`Test template was not rendered correctly, expecting %s but it is not present:
+		%s
+		`, mustcontain, body)
+	}
+}
+
 func TestDefaultTemplating(t *testing.T) {
-	a := New("template", Mode("testing", true), WithAssets(TestAssets))
+	a := New("template",
+		Mode("testing", true),
+		WithAssets(TestAsset),
+		CtxProcessors(tstctxprc),
+	)
+
+	a.Env.AddTplFuncs(tplfuncs)
 
 	a.GET("/template", tt)
 	a.GET("/asset_template", at)
@@ -54,30 +102,38 @@ func TestDefaultTemplating(t *testing.T) {
 			%s`, d1, d2)
 	}
 
-	var expected string = "layout.html,test.html,layout_asset.html,test_asset.html"
-	var templates string = stringtemplates(a.Env.Templator.ListTemplates())
+	var expected []string = []string{"layout.html", "test.html", "layout_asset.html", "test_asset.html"}
+	var templates []string = trimtemplates(a.Env.Templator.ListTemplates())
 
-	if bytes.Compare([]byte(expected), []byte(templates)) != 0 {
-		t.Errorf(`Template listing should be %s, but was %s`, expected, templates)
+	for _, ex := range expected {
+		if !existsIn(ex, templates) {
+			t.Errorf(`Existing templates do not contain %s`, ex)
+		}
 	}
 
 	p := NewPerformer(t, a, 200, "GET", "/template")
 
 	performFor(p)
 
-	if !strings.Contains(p.response.Body.String(), `<div>TEST TEMPLATE</div>`) {
-		t.Errorf(`Test template was not rendered correctly:
-		%s
-		`, p.response.Body.String())
+	lookfor := []string{
+		`<div>TEST TEMPLATE</div>`,
+		`Hello World!: TEST`,
+		`returned STRING`,
+		`<div>returned HTML</div>`,
+		`returned CALL`,
+		`[TEST_FLASH_ONE TEST_FLASH_TWO]`,
+		`/template?value1%3Dadditional`,
+		`unable to get url for route \does\not\exist\p\s\get with params [param /a/splat/fragment]`,
+		`SET_IN_CTX`,
+	}
+
+	for _, lf := range lookfor {
+		templatecontains(t, p.response.Body.String(), lf)
 	}
 
 	p = NewPerformer(t, a, 200, "GET", "/asset_template")
 
 	performFor(p)
 
-	if !strings.Contains(p.response.Body.String(), `<title>rendered from test template test_asset.html</title>`) {
-		t.Errorf(`Test asset template was not rendered correctly:
-		%s
-		`, p.response.Body.String())
-	}
+	templatecontains(t, p.response.Body.String(), `<title>rendered from test template test_asset.html</title>`)
 }

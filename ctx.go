@@ -16,7 +16,7 @@ import (
 // any number of routes, handlers, or application specific functions.
 type Manage func(Ctx)
 
-// Ctx is a context interface passing application and handler context.
+// Ctx is an interface passing application and handler context.
 type Ctx interface {
 	Extensor
 

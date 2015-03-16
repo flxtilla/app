@@ -35,9 +35,9 @@ type (
 )
 
 // Routes returns a map of all routes attached to the app.
-func (app *App) Routes() Routes {
+func (a *App) Routes() Routes {
 	allroutes := make(Routes)
-	for _, blueprint := range app.Blueprints() {
+	for _, blueprint := range a.Blueprints() {
 		for _, route := range blueprint.Routes {
 			if route.Name != "" {
 				allroutes[route.Name] = route

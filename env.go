@@ -48,28 +48,6 @@ func newEnv(a *App) *Env {
 	return e
 }
 
-// MergeEnv merges the provided Env with the existing Env.
-func (env *Env) MergeEnv(other *Env) {
-	env.MergeStore(other.Store)
-	for _, fs := range other.Assets {
-		env.Assets = append(env.Assets, fs)
-	}
-	env.StaticDirs(other.Store["STATIC_DIRECTORIES"].List()...)
-	env.TemplateDirs(other.Store["TEMPLATE_DIRECTORIES"].List()...)
-	env.MergeExtensions(other.extensions)
-}
-
-// MergeStore merges the provided Store with the existing Env Store.
-func (env *Env) MergeStore(other Store) {
-	for k, v := range other {
-		if !v.defaultvalue {
-			if _, ok := env.Store[k]; !ok {
-				env.Store[k] = v
-			}
-		}
-	}
-}
-
 func defaultModes() *Modes {
 	return &Modes{true, false, false}
 }
@@ -122,7 +100,6 @@ func (env *Env) AddExtension(name string, fn interface{}) error {
 	err := validExtension(fn)
 	if err == nil {
 		env.extensions[name] = valueFunc(fn)
-		return nil
 	}
 	return err
 }

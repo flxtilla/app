@@ -3,6 +3,7 @@ package flotilla
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -125,7 +126,7 @@ func (s Store) parseLine(section, line string) (string, error) {
 		s.add(section, m[0][1], "")
 		return section, nil
 	}
-	return section, xrr.NewError("flotilla env conf parse error")
+	return section, errors.New("conf parse error")
 }
 
 func (s Store) newKey(section string, key string) string {
