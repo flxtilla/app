@@ -3,12 +3,15 @@ package flotilla
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/thrisp/flotilla/xrr"
 )
 
 var (
@@ -34,19 +37,25 @@ var (
 )
 
 type (
-	// A StoreItem contains a default string value and/or a string value.
 	StoreItem struct {
 		defaultvalue bool
 		Value        string
 	}
 
-	// Store is a map of StoreItem managed by App.Env, used as a store of varied
-	// configuration items that might be represented with a default and/or explicitly
-	// set value.
 	Store map[string]*StoreItem
 )
 
-// LoadConfFile loads a text configuration file into a Store.
+func defaultStore() Store {
+	s := make(Store)
+	s.addDefault("upload", "size", "10000000")             // bytes
+	s.addDefault("secret", "key", "Flotilla;Secret;Key;1") // weak default value
+	s.addDefault("session", "cookiename", "session")
+	s.addDefault("session", "lifetime", "2629743")
+	s.add("static", "directories", workingStatic)
+	s.add("template", "directories", workingTemplates)
+	return s
+}
+
 func (s Store) LoadConfFile(filename string) (err error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -58,7 +67,6 @@ func (s Store) LoadConfFile(filename string) (err error) {
 	return err
 }
 
-// LoadConfByte loads a text configuration file as byte into a Store.
 func (s Store) LoadConfByte(b []byte, name string) (err error) {
 	reader := bufio.NewReader(bytes.NewReader(b))
 	err = s.parse(reader, name)
@@ -88,7 +96,7 @@ func (s Store) parse(reader *bufio.Reader, filename string) (err error) {
 		}
 		section, err = s.parseLine(section, line)
 		if err != nil {
-			return newError("[FLOTILLA] configuration parser: syntax error at '%s:%d'.", filename, lineno)
+			return xrr.NewError("[FLOTILLA] Store configuration parsing: syntax error at '%s:%d'.", filename, lineno)
 		}
 	}
 	return err
@@ -118,7 +126,7 @@ func (s Store) parseLine(section, line string) (string, error) {
 		s.add(section, m[0][1], "")
 		return section, nil
 	}
-	return section, newError("flotilla env conf parse error")
+	return section, errors.New("conf parse error")
 }
 
 func (s Store) newKey(section string, key string) string {
@@ -136,45 +144,39 @@ func (s Store) addDefault(section, key, value string) {
 	s[s.newKey(section, key)] = &StoreItem{Value: value, defaultvalue: true}
 }
 
-// Bool attempts to return the storeitem value as type bool
-func (si StoreItem) Bool() (bool, error) {
-	if value, ok := boolString[strings.ToLower(si.Value)]; ok {
-		return value, nil
+func (i StoreItem) Bool() bool {
+	if value, ok := boolString[strings.ToLower(i.Value)]; ok {
+		return value
 	}
-	return false, newError("could not return Bool value from StoreItem")
+	return false
 }
 
-// Float attempts to return the storeitem value as type float
-func (si *StoreItem) Float() (float64, error) {
-	if value, err := strconv.ParseFloat(si.Value, 64); err == nil {
-		return value, nil
+func (i *StoreItem) Float() float64 {
+	if value, err := strconv.ParseFloat(i.Value, 64); err == nil {
+		return value
 	}
-	return 0.0, newError("could not return Float value from StoreItem")
+	return 0.0
 }
 
-// Int attempts to return the storeitem value as type int
-func (si *StoreItem) Int() (int, error) {
-	if value, err := strconv.Atoi(si.Value); err == nil {
-		return value, nil
+func (i *StoreItem) Int() int {
+	if value, err := strconv.Atoi(i.Value); err == nil {
+		return value
 	}
-	return 0, newError("could not return Int value from StoreItem")
+	return 0
 }
 
-// Int64 attempts to return the storeitem value as type int64
-func (si *StoreItem) Int64() (int64, error) {
-	if value, err := strconv.ParseInt(si.Value, 10, 64); err == nil {
-		return value, nil
+func (i *StoreItem) Int64() int64 {
+	if value, err := strconv.ParseInt(i.Value, 10, 64); err == nil {
+		return value
 	}
-	return 0, newError("could not return Int64 value from StoreItem")
+	return -1
 }
 
-// List updates the storeitem value to a list with the provided strings, and
-// then returns the updated value as a string array type.
-func (si *StoreItem) List(li ...string) []string {
-	list := strings.Split(si.Value, ",")
-	for _, item := range li {
+func (i *StoreItem) List(l ...string) []string {
+	list := strings.Split(i.Value, ",")
+	for _, item := range l {
 		list = doAdd(item, list)
 	}
-	si.Value = strings.Join(list, ",")
-	return strings.Split(si.Value, ",")
+	i.Value = strings.Join(list, ",")
+	return strings.Split(i.Value, ",")
 }

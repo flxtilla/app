@@ -1,6 +1,11 @@
 package flotilla
 
-import "path/filepath"
+import (
+	"path/filepath"
+	"strconv"
+
+	"github.com/thrisp/flotilla/xrr"
+)
 
 type (
 	setupstate struct {
@@ -9,25 +14,25 @@ type (
 		held       []*Route
 	}
 
-	// A Blueprint gathers any number routes around a prefix and an array of
-	// group specific handlers.
+	// Blueprint is a common grouping of Routes.
 	Blueprint struct {
 		*setupstate
 		app      *App
 		children []*Blueprint
-		routes   Routes
 		Prefix   string
-		Handlers []Manage
+		Routes
+		Managers []Manage
+		MakeCtx  MakeCtxFunc
 	}
 )
 
-// Blueprints provides a flat array of Blueprint instances attached to the App.
-func (app *App) Blueprints() []*Blueprint {
+// Blueprints returns a flat array of Blueprints attached to the App.
+func (a *App) Blueprints() []*Blueprint {
 	type IterC func(bs []*Blueprint, fn IterC)
 
 	var bps []*Blueprint
 
-	bps = append(bps, app.Blueprint)
+	bps = append(bps, a.Blueprint)
 
 	iter := func(bs []*Blueprint, fn IterC) {
 		for _, x := range bs {
@@ -36,26 +41,23 @@ func (app *App) Blueprints() []*Blueprint {
 		}
 	}
 
-	iter(app.children, iter)
+	iter(a.children, iter)
 
 	return bps
 }
 
-// RegisterBlueprints integrates the given blueprints with the App.
-func (app *App) RegisterBlueprints(blueprints ...*Blueprint) {
+// Given any number of Blueprints, RegisterBlueprints registers each with the App.
+func (a *App) RegisterBlueprints(blueprints ...*Blueprint) {
 	for _, blueprint := range blueprints {
-		if existing, ok := app.existingBlueprint(blueprint.Prefix); ok {
-			existing.Use(blueprint.Handlers...)
-			app.MergeRoutes(existing, blueprint.routes)
-		} else {
-			app.children = append(app.children, blueprint)
-			blueprint.Register(app)
+		blueprint.Register(a)
+		if _, exists := a.ExistingBlueprint(blueprint.Prefix); !exists {
+			a.children = append(a.children, blueprint)
 		}
 	}
 }
 
-func (app *App) existingBlueprint(prefix string) (*Blueprint, bool) {
-	for _, b := range app.Blueprints() {
+func (a *App) ExistingBlueprint(prefix string) (*Blueprint, bool) {
+	for _, b := range a.Blueprints() {
 		if b.Prefix == prefix {
 			return b, true
 		}
@@ -63,32 +65,26 @@ func (app *App) existingBlueprint(prefix string) (*Blueprint, bool) {
 	return nil, false
 }
 
-// Mount takes an unregistered blueprint, registering and mounting the routes to
-// the provided string mount point with a copy of the blueprint. If inherit is
-// true, the blueprint becomes a child blueprint of app.Blueprint.
-func (app *App) Mount(mount string, inherit bool, blueprints ...*Blueprint) error {
-	var mbp *Blueprint
-	var mbs []*Blueprint
+// Mount attaches each provided Blueprint to the given string mount point, optionally
+// inheriting from and setting the app primary Blueprint as parent to the given Blueprints.
+func (a *App) Mount(point string, blueprints ...*Blueprint) error {
+	var b []*Blueprint
 	for _, blueprint := range blueprints {
 		if blueprint.registered {
-			return newError("only unregistered blueprints may be mounted; %s is already registered", blueprint.Prefix)
+			return xrr.NewError("only unregistered blueprints may be mounted; %s is already registered", blueprint.Prefix)
 		}
 
-		newprefix := filepath.ToSlash(filepath.Join(mount, blueprint.Prefix))
+		newprefix := filepath.ToSlash(filepath.Join(point, blueprint.Prefix))
 
-		if inherit {
-			mbp = app.NewBlueprint(newprefix)
-		} else {
-			mbp = NewBlueprint(newprefix)
+		nbp := a.NewBlueprint(newprefix)
+
+		for _, rt := range blueprint.setupstate.held {
+			nbp.Manage(rt)
 		}
 
-		for _, route := range blueprint.held {
-			mbp.Handle(route)
-		}
-
-		mbs = append(mbs, mbp)
+		b = append(b, nbp)
 	}
-	app.RegisterBlueprints(mbs...)
+	a.RegisterBlueprints(b...)
 	return nil
 }
 
@@ -103,25 +99,26 @@ func (b *Blueprint) pathFor(path string) string {
 
 // NewBlueprint returns a new Blueprint with the provided string prefix.
 func NewBlueprint(prefix string) *Blueprint {
-	return &Blueprint{setupstate: &setupstate{},
-		Prefix: prefix,
-		routes: make(Routes),
+	return &Blueprint{
+		setupstate: &setupstate{},
+		Prefix:     prefix,
+		Routes:     make(Routes),
 	}
 }
 
-// New creates a new child Blueprint from the existing Blueprint.
-func (b *Blueprint) NewBlueprint(component string, handlers ...Manage) *Blueprint {
+// NewBlueprint returns a new Blueprint as a child of the parent Blueprint.
+func (b *Blueprint) NewBlueprint(component string, managers ...Manage) *Blueprint {
 	prefix := b.pathFor(component)
 
 	newb := NewBlueprint(prefix)
-	newb.Handlers = b.combineHandlers(handlers)
+	newb.Managers = b.combineManagers(managers)
 
 	b.children = append(b.children, newb)
 
 	return newb
 }
 
-// Register will provide the app instance to the blueprint to finalize all deferred actions.
+// Register intergrates App information with the Blueprint.
 func (b *Blueprint) Register(a *App) {
 	b.app = a
 	b.runDeferred()
@@ -135,16 +132,16 @@ func (b *Blueprint) runDeferred() {
 	b.deferred = nil
 }
 
-func (b *Blueprint) combineHandlers(handlers []Manage) []Manage {
-	s := len(b.Handlers) + len(handlers)
+func (b *Blueprint) combineManagers(managers []Manage) []Manage {
+	s := len(b.Managers) + len(managers)
 	h := make([]Manage, 0, s)
-	h = append(h, b.Handlers...)
-	h = append(h, handlers...)
+	h = append(h, b.Managers...)
+	h = append(h, managers...)
 	return h
 }
 
-func (b *Blueprint) handlerExists(outside Manage) bool {
-	for _, inside := range b.Handlers {
+func (b *Blueprint) manageExists(outside Manage) bool {
+	for _, inside := range b.Managers {
 		if equalFunc(inside, outside) {
 			return true
 		}
@@ -152,42 +149,49 @@ func (b *Blueprint) handlerExists(outside Manage) bool {
 	return false
 }
 
-// Use adds any number of Manage to the Blueprint which will be run before
-// route handlers for all Route attached to the Blueprint.
-func (b *Blueprint) Use(handlers ...Manage) {
-	for _, handler := range handlers {
-		if !b.handlerExists(handler) {
-			b.Handlers = append(b.Handlers, handler)
+// Use adds Manage functions to the Blueprint.
+func (b *Blueprint) Use(managers ...Manage) {
+	for _, manage := range managers {
+		if !b.manageExists(manage) {
+			b.Managers = append(b.Managers, manage)
 		}
 	}
 }
 
-// UseAt adds any number of Manage to the Blueprint at the given index, for
-// when you must control the position in relation to other middleware.
-func (b *Blueprint) UseAt(index int, handlers ...Manage) {
-	if index > len(b.Handlers) {
-		b.Use(handlers...)
+// UseAt adds Manage functions to the Blueprint at the provided index.
+func (b *Blueprint) UseAt(index int, managers ...Manage) {
+	if index > len(b.Managers) {
+		b.Use(managers...)
 		return
 	}
 
 	var newh []Manage
 
-	for _, handler := range handlers {
-		if !b.handlerExists(handler) {
-			newh = append(newh, handler)
+	for _, manage := range managers {
+		if !b.manageExists(manage) {
+			newh = append(newh, manage)
 		}
 	}
 
-	before := b.Handlers[:index]
-	after := append(newh, b.Handlers[index:]...)
-	b.Handlers = append(before, after...)
+	before := b.Managers[:index]
+	after := append(newh, b.Managers[index:]...)
+	b.Managers = append(before, after...)
+}
+
+func (b *Blueprint) routeExists(route *Route) bool {
+	for _, r := range b.Routes {
+		if route.path == r.path {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *Blueprint) add(r *Route) {
 	if r.Name != "" {
-		b.routes[r.Name] = r
+		b.Routes[r.Name] = r
 	} else {
-		b.routes[r.Named()] = r
+		b.Routes[r.Named()] = r
 	}
 }
 
@@ -206,76 +210,72 @@ func (b *Blueprint) push(register func(), route *Route) {
 	}
 }
 
-func (b *Blueprint) register(route *Route) {
-	route.blueprint = b
-	route.handlers = b.combineHandlers(route.handlers)
-	route.path = b.pathFor(route.base)
-	route.registered = true
+func (b *Blueprint) mkctxfunc() MakeCtxFunc {
+	if b.MakeCtx == nil {
+		return b.app.Ctx()
+	}
+	return b.MakeCtx
 }
 
-// Handle registers new handlers and/or existing handlers with a constructed Route.
-// For GET, POST, DELETE, PATCH, PUT, OPTIONS, and HEAD requests the respective
-// shortcut functions can be used by specifying path & handlers.
-func (b *Blueprint) Handle(route *Route) {
+func (b *Blueprint) register(route *Route) {
+	route.blueprint = b
+	route.managers = b.combineManagers(route.managers)
+	route.path = b.pathFor(route.base)
+	route.registered = true
+	route.MakeCtx = b.mkctxfunc()
+}
+
+// Manage adds a route to the Blueprint.
+func (b *Blueprint) Manage(route *Route) {
 	register := func() {
 		b.register(route)
-		b.add(route)
-		b.app.manage(route.method, route.path, route.handle)
+		if !b.routeExists(route) {
+			b.add(route)
+			b.app.Handle(route.method, route.path, route.rule)
+		}
 	}
 	b.push(register, route)
 }
 
-func (b *Blueprint) GET(path string, handlers ...Manage) {
-	b.Handle(NewRoute("GET", path, false, handlers))
+func (b *Blueprint) GET(path string, managers ...Manage) {
+	b.Manage(NewRoute("GET", path, false, managers))
 }
 
-func (b *Blueprint) POST(path string, handlers ...Manage) {
-	b.Handle(NewRoute("POST", path, false, handlers))
+func (b *Blueprint) POST(path string, managers ...Manage) {
+	b.Manage(NewRoute("POST", path, false, managers))
 }
 
-func (b *Blueprint) DELETE(path string, handlers ...Manage) {
-	b.Handle(NewRoute("DELETE", path, false, handlers))
+func (b *Blueprint) DELETE(path string, managers ...Manage) {
+	b.Manage(NewRoute("DELETE", path, false, managers))
 }
 
-func (b *Blueprint) PATCH(path string, handlers ...Manage) {
-	b.Handle(NewRoute("PATCH", path, false, handlers))
+func (b *Blueprint) PATCH(path string, managers ...Manage) {
+	b.Manage(NewRoute("PATCH", path, false, managers))
 }
 
-func (b *Blueprint) PUT(path string, handlers ...Manage) {
-	b.Handle(NewRoute("PUT", path, false, handlers))
+func (b *Blueprint) PUT(path string, managers ...Manage) {
+	b.Manage(NewRoute("PUT", path, false, managers))
 }
 
-func (b *Blueprint) OPTIONS(path string, handlers ...Manage) {
-	b.Handle(NewRoute("OPTIONS", path, false, handlers))
+func (b *Blueprint) OPTIONS(path string, managers ...Manage) {
+	b.Manage(NewRoute("OPTIONS", path, false, managers))
 }
 
-func (b *Blueprint) HEAD(path string, handlers ...Manage) {
-	b.Handle(NewRoute("HEAD", path, false, handlers))
+func (b *Blueprint) HEAD(path string, managers ...Manage) {
+	b.Manage(NewRoute("HEAD", path, false, managers))
 }
 
-// STATIC adds a Static route handled by the app, based on the blueprint prefix.
 func (b *Blueprint) STATIC(path string) {
 	b.push(func() { b.app.StaticDirs(dropTrailing(path, "*filepath")) }, nil)
-	b.Handle(NewRoute("GET", path, true, []Manage{handleStatic}))
-}
-
-/*
-// Custom HttpStatus for the group, set and called from engine HttpStatuses
-func (b *Blueprint) StatusHandle(code int, handlers ...Manage) {
-	statushandler := func(c context.Context) {
-		curr := c.Value("Current").(Current)
-		statusCtx := b.app.tmpCtx(curr.Writer(), curr.Request())
-		s := len(handlers)
-		for i := 0; i < s; i++ {
-			handlers[i](statusCtx)
-		}
-		for _, fn := range statusCtx.deferred {
-			fn(statusCtx)
-		}
-	}
 	register := func() {
-		b.app.TakeStatus(code, statushandler)
+		route := NewRoute("GET", path, true, []Manage{b.app.Staticor.Manage})
+		b.register(route)
+		b.add(route)
+		b.app.Handle(route.method, route.path, route.rule)
 	}
 	b.push(register, nil)
 }
-*/
+
+func (b *Blueprint) STATUS(code int, managers ...Manage) {
+	b.push(func() { b.app.Handle("STATUS", strconv.Itoa(code), CustomStatusRule(b.app, code, managers...)) }, nil)
+}

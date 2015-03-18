@@ -17,21 +17,24 @@ var (
 	cValueSanitizer = strings.NewReplacer("\n", " ", "\r", " ", ";", " ")
 )
 
-func cookies(ctx *Ctx) map[string]*http.Cookie {
+func cookies(c *ctx) map[string]*http.Cookie {
 	ret := make(map[string]*http.Cookie)
-	for _, cookie := range ctx.Request.Cookies() {
+	for _, cookie := range c.Request.Cookies() {
 		ret[cookie.Name] = cookie
 	}
 	return ret
 }
 
-// Cookies returns a map of cookies in the request keyed by cookie name.
-func (ctx *Ctx) Cookies() map[string]*http.Cookie {
-	ret, _ := ctx.Call("cookies", ctx)
-	return ret.(map[string]*http.Cookie)
+func readcookies(c *ctx) map[string]string {
+	ret := make(map[string]string)
+	cks := cookies(c)
+	for k, v := range cks {
+		ret[k] = unpackcookie(c, v)
+	}
+	return ret
 }
 
-func unpackcookie(ctx *Ctx, cookie *http.Cookie) string {
+func unpackcookie(c *ctx, cookie *http.Cookie) string {
 	val := cookie.Value
 	if val == "" {
 		return val
@@ -47,7 +50,7 @@ func unpackcookie(ctx *Ctx, cookie *http.Cookie) string {
 	// timestamp := parts[1]
 	sig := parts[2]
 
-	if secret, ok := ctx.App.Env.Store["SECRET_KEY"]; ok {
+	if secret, ok := CheckStore(c, "SECRET_KEY"); ok {
 		h := hmac.New(sha1.New, []byte(secret.Value))
 
 		if fmt.Sprintf("%02x", h.Sum(nil)) != sig {
@@ -60,24 +63,19 @@ func unpackcookie(ctx *Ctx, cookie *http.Cookie) string {
 	return "cookie value could not be read and/or unpacked"
 }
 
-func (ctx *Ctx) ReadCookies() map[string]string {
-	ret := make(map[string]string)
-	cks := cookies(ctx)
-	for k, v := range cks {
-		ret[k] = unpackcookie(ctx, v)
-	}
-	return ret
-}
-
-func cookie(ctx *Ctx, secure bool, name string, value string, opts []interface{}) error {
+func cookie(c *ctx, secure bool, name string, value string, opts []interface{}) error {
 	if secure {
-		if secret, ok := ctx.App.Env.Store["SECRET_KEY"]; ok {
+		if secret, ok := CheckStore(c, "SECRET_KEY"); ok {
 			value = securevalue(secret.Value, value)
 		}
 	}
 	cke := basiccookie(name, value, opts...)
-	ctx.ModifyHeader("add", []string{"Set-Cookie", cke})
+	headermodify(c, "add", []string{"Set-Cookie", cke})
 	return nil
+}
+
+func securecookie(c *ctx, name string, value string, opts ...interface{}) error {
+	return cookie(c, true, name, value, opts)
 }
 
 func securevalue(secret string, value string) string {
@@ -135,14 +133,11 @@ func basiccookie(name string, value string, opts ...interface{}) string {
 	return b.String()
 }
 
-func (ctx *Ctx) SecureCookie(name string, value string, opts ...interface{}) error {
-	_, err := ctx.Call("cookie", ctx, true, name, value, opts)
-	return err
+var cookiefxtension = map[string]interface{}{
+	"cookie":       cookie,
+	"securecookie": securecookie,
+	"cookies":      cookies,
+	"readcookies":  readcookies,
 }
 
-// Cookie takes a name, value and optional options(MaxAge as int, Path & Domain
-// as string, Secure & as bool) to add a cookie to the header.
-func (ctx *Ctx) Cookie(name string, value string, opts ...interface{}) error {
-	_, err := ctx.Call("cookie", ctx, false, name, value, opts)
-	return err
-}
+var CookieFxtension Fxtension = MakeFxtension("cookiefxtension", cookiefxtension)

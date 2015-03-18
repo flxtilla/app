@@ -1,4 +1,5 @@
-package flotilla
+// Package xrr contains common error handling functionality for flotilla.
+package xrr
 
 import (
 	"bytes"
@@ -8,8 +9,10 @@ import (
 )
 
 const (
+	ErrorTypeFlotilla = 1 << iota
 	ErrorTypeInternal = 1 << iota
 	ErrorTypeExternal = 1 << iota
+	ErrorTypePanic    = 1 << iota
 	ErrorTypeAll      = 0xffffffff
 )
 
@@ -20,35 +23,63 @@ var (
 	slash     = []byte("/")
 )
 
-type (
-	FlotillaError struct {
-		format     string
-		parameters []interface{}
-	}
-)
-
-func newError(format string, parameters ...interface{}) error {
-	return &FlotillaError{format, parameters}
+type Erroror interface {
+	Error(err error, typ uint32, meta interface{})
+	Frror(format string, typ uint32, meta interface{}, parameters ...interface{})
+	Errors() ErrorMsgs
 }
 
-func (e *FlotillaError) Error() string {
-	return fmt.Sprintf(e.format, e.parameters...)
+type erroror struct {
+	errors ErrorMsgs
 }
 
-// Used internally with Ctx to collect errors that occurred during an http request.
-type errorMsg struct {
-	Err  string      `json:"error"`
-	Type uint32      `json:"-"`
-	Meta interface{} `json:"meta"`
+func DefaultErroror() Erroror {
+	return &erroror{}
 }
 
-type errorMsgs []errorMsg
+func (e *erroror) Error(err error, typ uint32, meta interface{}) {
+	e.errors = append(e.errors, ErrorMsg{
+		Err:  err.Error(),
+		Type: typ,
+		Meta: meta,
+	})
+}
 
-func (a errorMsgs) ByType(typ uint32) errorMsgs {
+func (e *erroror) Frror(err string, typ uint32, meta interface{}, parameters ...interface{}) {
+	e.errors = append(e.errors, ErrorMsg{
+		Err:        err,
+		Type:       typ,
+		Meta:       meta,
+		parameters: parameters,
+	})
+}
+
+func (e *erroror) Errors() ErrorMsgs {
+	return e.errors
+}
+
+type ErrorMsg struct {
+	Err        string      `json:"error"`
+	Type       uint32      `json:"-"`
+	Meta       interface{} `json:"meta"`
+	parameters []interface{}
+}
+
+func (e ErrorMsg) Error() string {
+	return fmt.Sprintf(e.Err, e.parameters...)
+}
+
+func NewError(err string, params ...interface{}) ErrorMsg {
+	return ErrorMsg{Err: err, parameters: params, Type: ErrorTypeFlotilla}
+}
+
+type ErrorMsgs []ErrorMsg
+
+func (a ErrorMsgs) ByType(typ uint32) ErrorMsgs {
 	if len(a) == 0 {
 		return a
 	}
-	result := make(errorMsgs, 0, len(a))
+	result := make(ErrorMsgs, 0, len(a))
 	for _, msg := range a {
 		if msg.Type&typ > 0 {
 			result = append(result, msg)
@@ -57,20 +88,20 @@ func (a errorMsgs) ByType(typ uint32) errorMsgs {
 	return result
 }
 
-func (a errorMsgs) String() string {
+func (a ErrorMsgs) String() string {
 	if len(a) == 0 {
 		return ""
 	}
 	var buffer bytes.Buffer
 	for i, msg := range a {
-		text := fmt.Sprintf("Error #%02d: %s \n     Meta: %v\n", (i + 1), msg.Err, msg.Meta)
+		text := fmt.Sprintf("Error #%02d: %s \n     Meta: %v\n", (i + 1), msg.Error(), msg.Meta)
 		buffer.WriteString(text)
 	}
 	return buffer.String()
 }
 
 // stack returns a nicely formated stack frame, skipping skip frames
-func stack(skip int) []byte {
+func Stack(skip int) []byte {
 	buf := new(bytes.Buffer) // the returned data
 	// As we loop, we open files and read them. These variables record the currently
 	// loaded file.
@@ -91,13 +122,13 @@ func stack(skip int) []byte {
 			lines = bytes.Split(data, []byte{'\n'})
 			lastFile = file
 		}
-		fmt.Fprintf(buf, "\t%s: %s\n", function(pc), source(lines, line))
+		fmt.Fprintf(buf, "\t%s: %s\n", Function(pc), Source(lines, line))
 	}
 	return buf.Bytes()
 }
 
 // source returns a space-trimmed slice of the n'th line.
-func source(lines [][]byte, n int) []byte {
+func Source(lines [][]byte, n int) []byte {
 	n-- // in stack trace, lines are 1-indexed but our array is 0-indexed
 	if n < 0 || n >= len(lines) {
 		return unknown
@@ -106,7 +137,7 @@ func source(lines [][]byte, n int) []byte {
 }
 
 // function returns, if possible, the name of the function containing the PC.
-func function(pc uintptr) []byte {
+func Function(pc uintptr) []byte {
 	fn := runtime.FuncForPC(pc)
 	if fn == nil {
 		return unknown

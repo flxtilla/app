@@ -1,4 +1,4 @@
-package flotilla
+package engine
 
 import (
 	"strings"
@@ -12,15 +12,11 @@ const (
 )
 
 type (
-	// Param is a single URL parameter, consisting of a key and a value.
 	Param struct {
 		Key   string
 		Value string
 	}
 
-	// Params is a Param-slice, as returned by the router. The slice is ordered,
-	// the first URL parameter is also the first slice value. It is safe to read
-	// values by the index.
 	Params []Param
 
 	nodeType uint8
@@ -32,51 +28,11 @@ type (
 		maxParams uint8
 		indices   []byte
 		children  []*node
-		manage    Manage
+		rule      Rule
 		priority  uint32
-	}
-
-	engine struct {
-		trees map[string]*node
-	}
-
-	result struct {
-		code    int
-		handler Manage
-		params  Params
-		tsr     bool
 	}
 )
 
-func (e *engine) manage(method string, path string, m Manage) {
-	if path[0] != '/' {
-		panic("path must begin with '/'")
-	}
-
-	if e.trees == nil {
-		e.trees = make(map[string]*node)
-	}
-
-	root := e.trees[method]
-	if root == nil {
-		root = new(node)
-		e.trees[method] = root
-	}
-
-	root.addRoute(path, m)
-}
-
-func (e *engine) lookup(method, path string) *result {
-	if root := e.trees[method]; root != nil {
-		if manage, params, tsr := root.getValue(path); manage != nil {
-			return &result{200, manage, params, tsr}
-		}
-	}
-	return &result{}
-}
-
-// ByName returns the value of the first Param which key matches the given name.
-// If no matching Param is found, an empty string is returned.
 func (ps Params) ByName(name string) string {
 	for i := range ps {
 		if ps[i].Key == name {
@@ -107,7 +63,6 @@ func countParams(path string) uint8 {
 	return uint8(n)
 }
 
-// increments priority of the given child and reorders if necessary
 func (n *node) incrementChildPrio(i int) int {
 	n.children[i].priority++
 	prio := n.children[i].priority
@@ -127,9 +82,7 @@ func (n *node) incrementChildPrio(i int) int {
 	return i
 }
 
-// addRoute adds a node with the given handle to the path.
-// Not concurrency-safe!
-func (n *node) addRoute(path string, manage Manage) {
+func (n *node) addRoute(path string, rule Rule) {
 	n.priority++
 	numParams := countParams(path)
 
@@ -156,7 +109,7 @@ func (n *node) addRoute(path string, manage Manage) {
 					wildChild: n.wildChild,
 					indices:   n.indices,
 					children:  n.children,
-					manage:    n.manage,
+					rule:      n.rule,
 					priority:  n.priority - 1,
 				}
 
@@ -170,7 +123,7 @@ func (n *node) addRoute(path string, manage Manage) {
 				n.children = []*node{&child}
 				n.indices = []byte{n.path[i]}
 				n.path = path[:i]
-				n.manage = nil
+				n.rule = nil
 				n.wildChild = false
 			}
 
@@ -227,23 +180,23 @@ func (n *node) addRoute(path string, manage Manage) {
 					n.incrementChildPrio(len(n.indices) - 1)
 					n = child
 				}
-				n.insertChild(numParams, path, manage)
+				n.insertChild(numParams, path, rule)
 				return
 
 			} else if i == len(path) { // Make node a (in-path) leaf
-				if n.manage != nil {
-					panic("a Manage is already registered for this path")
+				if n.rule != nil {
+					panic("a Rule is already registered for this path")
 				}
-				n.manage = manage
+				n.rule = rule
 			}
 			return
 		}
 	} else { // Empty tree
-		n.insertChild(numParams, path, manage)
+		n.insertChild(numParams, path, rule)
 	}
 }
 
-func (n *node) insertChild(numParams uint8, path string, manage Manage) {
+func (n *node) insertChild(numParams uint8, path string, rule Rule) {
 	var offset int
 
 	// find prefix until first wildcard (beginning with ':'' or '*'')
@@ -333,7 +286,7 @@ func (n *node) insertChild(numParams uint8, path string, manage Manage) {
 				path:      path[i:],
 				nType:     catchAll,
 				maxParams: 1,
-				manage:    manage,
+				rule:      rule,
 				priority:  1,
 			}
 			n.children = []*node{child}
@@ -344,15 +297,10 @@ func (n *node) insertChild(numParams uint8, path string, manage Manage) {
 
 	// insert remaining path part and handle to the leaf
 	n.path = path[offset:]
-	n.manage = manage
+	n.rule = rule
 }
 
-// Returns the handle registered with the given path (key). The values of
-// wildcards are saved to a map.
-// If no handle can be found, a TSR (trailing slash redirect) recommendation is
-// made if a handle exists with an extra (without the) trailing slash for the
-// given path.
-func (n *node) getValue(path string) (manage Manage, p Params, tsr bool) {
+func (n *node) getValue(path string) (rule Rule, p Params, tsr bool) {
 walk: // Outer loop for walking the tree
 	for {
 		if len(path) > len(n.path) {
@@ -373,7 +321,7 @@ walk: // Outer loop for walking the tree
 					// Nothing found.
 					// We can recommend to redirect to the same URL without a
 					// trailing slash if a leaf exists for that path.
-					tsr = (path == "/" && n.manage != nil)
+					tsr = (path == "/" && n.rule != nil)
 					return
 
 				}
@@ -411,13 +359,13 @@ walk: // Outer loop for walking the tree
 						return
 					}
 
-					if manage = n.manage; manage != nil {
+					if rule = n.rule; rule != nil {
 						return
 					} else if len(n.children) == 1 {
 						// No handle found. Check if a handle for this path + a
 						// trailing slash exists for TSR recommendation
 						n = n.children[0]
-						tsr = (n.path == "/" && n.manage != nil)
+						tsr = (n.path == "/" && n.rule != nil)
 					}
 
 					return
@@ -433,17 +381,17 @@ walk: // Outer loop for walking the tree
 					p[i].Key = n.path[2:]
 					p[i].Value = path
 
-					manage = n.manage
+					rule = n.rule
 					return
 
 				default:
-					panic("Unknown node type")
+					panic("Invalid node type")
 				}
 			}
 		} else if path == n.path {
 			// We should have reached the node containing the handle.
 			// Check if this node has a handle registered.
-			if manage = n.manage; manage != nil {
+			if rule = n.rule; rule != nil {
 				return
 			}
 
@@ -452,8 +400,8 @@ walk: // Outer loop for walking the tree
 			for i, index := range n.indices {
 				if index == '/' {
 					n = n.children[i]
-					tsr = (n.path == "/" && n.manage != nil) ||
-						(n.nType == catchAll && n.children[0].manage != nil)
+					tsr = (n.path == "/" && n.rule != nil) ||
+						(n.nType == catchAll && n.children[0].rule != nil)
 					return
 				}
 			}
@@ -465,15 +413,11 @@ walk: // Outer loop for walking the tree
 		// extra trailing slash if a leaf exists for that path
 		tsr = (path == "/") ||
 			(len(n.path) == len(path)+1 && n.path[len(path)] == '/' &&
-				path == n.path[:len(n.path)-1] && n.manage != nil)
+				path == n.path[:len(n.path)-1] && n.rule != nil)
 		return
 	}
 }
 
-// Makes a case-insensitive lookup of the given path and tries to find a handler.
-// It can optionally also fix trailing slashes.
-// It returns the case-corrected path and a bool indicating wether the lookup
-// was successful.
 func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPath []byte, found bool) {
 	ciPath = make([]byte, 0, len(path)+1) // preallocate enough memory
 
@@ -501,7 +445,7 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 
 				// Nothing found. We can recommend to redirect to the same URL
 				// without a trailing slash if a leaf exists for that path
-				found = (fixTrailingSlash && path == "/" && n.manage != nil)
+				found = (fixTrailingSlash && path == "/" && n.rule != nil)
 				return
 
 			} else {
@@ -532,13 +476,13 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 						}
 					}
 
-					if n.manage != nil {
+					if n.rule != nil {
 						return ciPath, true
 					} else if fixTrailingSlash && len(n.children) == 1 {
 						// No handle found. Check if a handle for this path + a
 						// trailing slash exists
 						n = n.children[0]
-						if n.path == "/" && n.manage != nil {
+						if n.path == "/" && n.rule != nil {
 							return append(ciPath, '/'), true
 						}
 					}
@@ -548,13 +492,13 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 					return append(ciPath, path...), true
 
 				default:
-					panic("Unknown node type")
+					panic("Invalid node type")
 				}
 			}
 		} else {
 			// We should have reached the node containing the handle.
 			// Check if this node has a handle registered.
-			if n.manage != nil {
+			if n.rule != nil {
 				return ciPath, true
 			}
 
@@ -564,8 +508,8 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 				for i, index := range n.indices {
 					if index == '/' {
 						n = n.children[i]
-						if (n.path == "/" && n.manage != nil) ||
-							(n.nType == catchAll && n.children[0].manage != nil) {
+						if (n.path == "/" && n.rule != nil) ||
+							(n.nType == catchAll && n.children[0].rule != nil) {
 							return append(ciPath, '/'), true
 						}
 						return
@@ -584,7 +528,7 @@ func (n *node) findCaseInsensitivePath(path string, fixTrailingSlash bool) (ciPa
 		}
 		if len(path)+1 == len(n.path) && n.path[len(path)] == '/' &&
 			strings.ToLower(path) == strings.ToLower(n.path[:len(path)]) &&
-			n.manage != nil {
+			n.rule != nil {
 			return append(ciPath, n.path...), true
 		}
 	}

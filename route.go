@@ -2,10 +2,13 @@ package flotilla
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/thrisp/flotilla/engine"
 )
 
 var (
@@ -14,30 +17,28 @@ var (
 )
 
 type (
-	// Data about a route for use & reuse within App.
+	MakeCtxFunc func(w http.ResponseWriter, rq *http.Request, rs *engine.Result, rt *Route) Ctx
+
 	Route struct {
-		//p          sync.Pool
 		registered bool
 		blueprint  *Blueprint
 		static     bool
 		method     string
 		base       string
 		path       string
-		handlers   []Manage
-		//ctxprocessors map[string]interface{}
-		Name string
+		managers   []Manage
+		Name       string
+		MakeCtx    MakeCtxFunc
 	}
 
-	// A map of Route instances keyed by a string.
 	Routes map[string]*Route
 )
 
-// Routes returns an array of Route instances, with all App routes from all
-// App blueprints.
-func (app *App) Routes() Routes {
+// Routes returns a map of all routes attached to the app.
+func (a *App) Routes() Routes {
 	allroutes := make(Routes)
-	for _, blueprint := range app.Blueprints() {
-		for _, route := range blueprint.routes {
+	for _, blueprint := range a.Blueprints() {
+		for _, route := range blueprint.Routes {
 			if route.Name != "" {
 				allroutes[route.Name] = route
 			} else {
@@ -48,40 +49,15 @@ func (app *App) Routes() Routes {
 	return allroutes
 }
 
-func (app *App) existingRoute(route *Route) bool {
-	for _, r := range app.Routes() {
-		if route.path == r.path {
-			return true
-		}
-	}
-	return false
+func (rt *Route) rule(rw http.ResponseWriter, rq *http.Request, rs *engine.Result) {
+	c := rt.MakeCtx(rw, rq, rs, rt)
+	c.Run()
+	c.Cancel()
 }
 
-// MergeRoutes merges the given blueprint with the given routes, by route existence.
-func (app *App) MergeRoutes(blueprint *Blueprint, routes Routes) {
-	for _, route := range routes {
-		if route.static && !app.existingRoute(route) {
-			blueprint.STATIC(route.path)
-		}
-		if !route.static && !app.existingRoute(route) {
-			blueprint.Handle(route)
-		}
-	}
-}
-
-func (rt *Route) App() *App {
-	return rt.blueprint.app
-}
-
-func (rt *Route) handle(c *Ctx) {
-	c.handlers = rt.handlers
-	c.events()
-}
-
-// NewRoute returns a new Route from a string method, a string path, a boolean
-// indicating if the route is static, and an array of Manage
-func NewRoute(method string, path string, static bool, handlers []Manage) *Route {
-	rt := &Route{method: method, static: static, handlers: handlers}
+// NewRoute returns a new route instance with the given method, path, bool, and Manage functions.
+func NewRoute(method string, path string, static bool, managers []Manage) *Route {
+	rt := &Route{method: method, static: static, managers: managers}
 	if static {
 		if fp := strings.Split(path, "/"); fp[len(fp)-1] != "*filepath" {
 			rt.base = filepath.ToSlash(filepath.Join(path, "/*filepath"))
@@ -94,8 +70,7 @@ func NewRoute(method string, path string, static bool, handlers []Manage) *Route
 	return rt
 }
 
-// Named produces a default name for the route based on path & parameters, useful
-// to Blueprint and App, where a route is not specifically named.
+// Named returns the route name.
 func (rt *Route) Named() string {
 	name := strings.Split(rt.path, "/")
 	name = append(name, strings.ToLower(rt.method))
@@ -110,24 +85,7 @@ func (rt *Route) Named() string {
 	return strings.Join(name, `\`)
 }
 
-// Url takes string parameters and applies them to a Route. First to any :parameter
-// params, then *splat params. If any params are left over(not the case with a
-// *splat), and the route method is GET, a query string of key=value is appended
-// to the end of the url with arbitrarily assigned keys(e.g. value1=param) where
-// no key is provided
-//
-// e.g.
-// r1 := NewRoute("GET", /my/:mysterious/path, false, []Manage{AManage})
-// r2 := NewRoute("GET", /my/*path, false, []Manage{AManage})
-// u1, _ := r1.Url("hello", "world=are" "you=there", "sayhi")
-// u2, _ := r2.Url("hello", "world", "are" "you", "there")
-// fmt.Printf("url1: %s\n", u1)
-//
-//	/my/hello/path?world=are&you=there&value3=sayhi
-//
-// fmt.Printf("url2: %s\n", u2)
-//
-//	/my/hello/world/are/you/there
+// Url returns a url for the route, provided the string parameters.
 func (rt *Route) Url(params ...string) (*url.URL, error) {
 	paramCount := len(params)
 	i := 0

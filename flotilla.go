@@ -3,39 +3,40 @@ package flotilla
 import (
 	"fmt"
 	"net/http"
-	"sync"
+
+	"github.com/thrisp/flotilla/engine"
 )
 
-type (
-	// The base of running a Flotilla instance is an App struct with a Name,
-	// an Env with information specific to running the App, and a chain of
-	// Blueprints
-	App struct {
-		p    sync.Pool
-		name string
-		*engine
-		*Config
-		*Env
-		*Blueprint
-	}
-)
+type App struct {
+	name string
+	engine.Engine
+	*Config
+	*Env
+	*Messaging
+	*Blueprint
+}
 
-// Returns a new App instance with no configuration.
+// Empty returns an App instance with nothing but a name.
 func Empty(name string) *App {
-	app := &App{name: name, engine: &engine{}, Env: EmptyEnv()}
-	app.p.New = app.newCtx
+	return &App{name: name}
+}
+
+// Base returns an intialized App with provided Configuration immediately applied.
+func Base(name string, conf ...Configuration) *App {
+	app := Empty(name)
+	runConf(app, conf...)
+	app.Env = newEnv(app)
+	app.Messaging = newMessaging()
+	runConf(app, configureFirst...)
 	return app
 }
 
-// Returns a new App with default configuration.
+// New returns a Base initialized App with default plus any provided configuration.
 func New(name string, conf ...Configuration) *App {
-	app := Empty(name)
-	app.BaseEnv()
-	app.Config = defaultConfig()
+	app := Base(name)
 	app.Blueprint = NewBlueprint("/")
 	app.STATIC("static")
-	app.Configured = false
-	app.Configuration = conf
+	app.Config = newConfig(conf...)
 	return app
 }
 
@@ -43,11 +44,8 @@ func (a *App) Name() string {
 	return a.name
 }
 
-func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	rslt := a.lookup(r.Method, r.URL.Path)
-	ctx := a.getCtx(w, r, rslt)
-	rslt.handler(ctx)
-	a.putCtx(ctx)
+func (a *App) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
+	a.Engine.ServeHTTP(rw, rq)
 }
 
 func (a *App) Run(addr string) {

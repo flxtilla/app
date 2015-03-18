@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 
 	"github.com/thrisp/djinn"
+	"github.com/thrisp/flotilla/xrr"
 )
 
 type (
-	// Templator is an interface with methods for app templating.
 	Templator interface {
 		Render(io.Writer, string, interface{}) error
 		ListTemplateDirs() []string
@@ -19,28 +19,26 @@ type (
 		UpdateTemplateDirs(...string)
 	}
 
-	// The default Flotilla templator
 	templator struct {
 		*djinn.Djinn
 		TemplateDirs []string
 	}
 
-	// The default templator loader
 	Loader struct {
 		env            *Env
 		FileExtensions []string
 	}
 )
 
-// TemplatorInit sets a default templator if one is not set, and gathers template
-// directories from all attached Flotilla envs.
-func (env *Env) TemplatorInit() {
-	if env.Templator == nil {
-		env.Templator = NewTemplator(env)
+// TemplatorInit intializes the default Templator if none is listed with the Env.
+func TemplatorInit(a *App) {
+	if a.Env.Templator == nil {
+		a.Env.Templator = NewTemplator(a.Env)
 	}
 }
 
-// TemplateDirs produces a listing of templator template directories.
+// TemplateDirs updates with the provided and returns existing template
+// directories listed in the Env.
 func (env *Env) TemplateDirs(dirs ...string) []string {
 	storedirs := env.Store["TEMPLATE_DIRECTORIES"].List(dirs...)
 	if env.Templator != nil {
@@ -50,7 +48,7 @@ func (env *Env) TemplateDirs(dirs ...string) []string {
 	return storedirs
 }
 
-// NewTemplator returns a new instance of the default Flotilla templator.
+// NewTemplator returns a new default templator.
 func NewTemplator(env *Env) *templator {
 	j := &templator{Djinn: djinn.Empty()}
 	j.UpdateTemplateDirs(env.Store["TEMPLATE_DIRECTORIES"].List()...)
@@ -58,10 +56,12 @@ func NewTemplator(env *Env) *templator {
 	return j
 }
 
+// ListTemplateDirs lists template directories attached to the templator.
 func (t *templator) ListTemplateDirs() []string {
 	return t.TemplateDirs
 }
 
+// ListTemplates returns list of templates in hte Templator loaders.
 func (t *templator) ListTemplates() []string {
 	var ret []string
 	for _, l := range t.Djinn.Loaders {
@@ -71,17 +71,21 @@ func (t *templator) ListTemplates() []string {
 	return ret
 }
 
+// UpdateTemplateDirs updatese the templator with the provided string directories.
 func (t *templator) UpdateTemplateDirs(dirs ...string) {
 	for _, dir := range dirs {
 		t.TemplateDirs = doAdd(dir, t.TemplateDirs)
 	}
 }
 
+// newLoader returns a new flotilla Loader.
 func NewLoader(env *Env) *Loader {
 	fl := &Loader{env: env, FileExtensions: []string{".html", ".dji"}}
 	return fl
 }
 
+// ValidFileExtension returns a boolean for extension provided if the flotilla
+// Loader allows the extension type.
 func (fl *Loader) ValidFileExtension(ext string) bool {
 	for _, extension := range fl.FileExtensions {
 		if extension == ext {
@@ -91,9 +95,7 @@ func (fl *Loader) ValidFileExtension(ext string) bool {
 	return false
 }
 
-// AssetTemplates returns a string array of templates in binary assets attached
-// to the application. Iterates all assets, returns filenames matching flotilla
-// loader valid extensions(default .html, .dji).
+// AssetTemplates returns templates linked to Assets in the flotilla Loader.
 func (fl *Loader) AssetTemplates() []string {
 	var ret []string
 	for _, assetfs := range fl.env.Assets {
@@ -106,9 +108,7 @@ func (fl *Loader) AssetTemplates() []string {
 	return ret
 }
 
-// ListTemplates returns a string array of absolute template paths for all
-// templates dirs & assets matching valid extensions(default .html, .dji) and
-// associated with the flotilla loader.
+// ListTemplates  lists templates in the flotilla Loader.
 func (fl *Loader) ListTemplates() interface{} {
 	var ret []string
 	for _, p := range fl.env.TemplateDirs() {
@@ -123,6 +123,7 @@ func (fl *Loader) ListTemplates() interface{} {
 	return ret
 }
 
+// Load a template by string name from the flotilla Loader.
 func (fl *Loader) Load(name string) (string, error) {
 	for _, p := range fl.env.TemplateDirs() {
 		f := filepath.Join(p, name)
@@ -140,5 +141,5 @@ func (fl *Loader) Load(name string) (string, error) {
 			}
 		}
 	}
-	return "", newError("Template %s does not exist", name)
+	return "", xrr.NewError("Template %s does not exist", name)
 }

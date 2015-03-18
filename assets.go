@@ -3,7 +3,6 @@ package flotilla
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -11,6 +10,8 @@ import (
 	"path"
 	"path/filepath"
 	"time"
+
+	"github.com/thrisp/flotilla/xrr"
 )
 
 type (
@@ -32,12 +33,6 @@ type (
 		Children     []os.FileInfo
 	}
 
-	// A pseudo-file structure constructed from functions & optional prefix
-	// Flotilla can use binary data, and is the current optimal way to define
-	// inbuilt assets for extensions.
-	// See:
-	// https://github.com/jteeuwen/go-bindata
-	// https://github.com/elazarl/go-bindata-assetfs
 	AssetFS struct {
 		Asset      func(string) ([]byte, error)
 		AssetDir   func(string) ([]string, error)
@@ -45,7 +40,6 @@ type (
 		Prefix     string
 	}
 
-	// An array of AssetFS instances
 	Assets []*AssetFS
 )
 
@@ -111,7 +105,6 @@ func NewAssetDirectory(name string, children []string, fs *AssetFS) *AssetDirect
 }
 
 func (f *AssetDirectory) Readdir(count int) ([]os.FileInfo, error) {
-	fmt.Println(f, count)
 	if count <= 0 {
 		return f.Children, nil
 	}
@@ -141,7 +134,7 @@ func (fs *AssetFS) GetAsset(requested string) (http.File, error) {
 		f, err := fs.Open(hasasset)
 		return f, err
 	}
-	return nil, newError("asset %s unvailable", requested)
+	return nil, xrr.NewError("asset %s unvailable", requested)
 }
 
 func (fs *AssetFS) Open(name string) (http.File, error) {
@@ -159,8 +152,6 @@ func (fs *AssetFS) Open(name string) (http.File, error) {
 	return NewAssetFile(name, b), nil
 }
 
-// Return the requested asset as http.File from the AssetFS's contained
-// in Asset, by supplying a string
 func (a Assets) Get(requested string) (http.File, error) {
 	for _, x := range a {
 		f, err := x.GetAsset(requested)
@@ -168,7 +159,7 @@ func (a Assets) Get(requested string) (http.File, error) {
 			return f, nil
 		}
 	}
-	return nil, newError("asset %s unavailable", requested)
+	return nil, xrr.NewError("asset %s unavailable", requested)
 }
 
 func (a Assets) GetByte(requested string) ([]byte, error) {
@@ -178,5 +169,5 @@ func (a Assets) GetByte(requested string) ([]byte, error) {
 			return b, nil
 		}
 	}
-	return nil, newError("asset %s unavailable", requested)
+	return nil, xrr.NewError("asset %s unavailable", requested)
 }

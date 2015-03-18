@@ -1,12 +1,23 @@
 package flotilla
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/thrisp/flotilla/engine"
+	"github.com/thrisp/flotilla/xrr"
+)
 
 var (
-	configureLast = []Configuration{cblueprints,
+	configureFirst = []Configuration{
+		cengine,
+	}
+
+	configureLast = []Configuration{
 		cstatic,
+		cblueprints,
 		ctemplating,
-		csession}
+		csession,
+	}
 )
 
 type (
@@ -16,28 +27,41 @@ type (
 		deferred      []Configuration
 	}
 
-	// A function that takes an App pointer to configure the App.
 	Configuration func(*App) error
 )
 
-func defaultConfig() *Config {
-	return &Config{deferred: configureLast}
+func newConfig(cnf ...Configuration) *Config {
+	return &Config{
+		Configured:    false,
+		Configuration: cnf,
+		deferred:      configureLast,
+	}
 }
 
-// Configure takes any number of Configuration functions and to run the app through.
-func (a *App) Configure(c ...Configuration) error {
+func runConf(a *App, cnf ...Configuration) error {
 	var err error
-	a.Configuration = append(a.Configuration, c...)
-	for _, fn := range a.Configuration {
+	for _, fn := range cnf {
 		err = fn(a)
 	}
-	for _, fn := range a.deferred {
-		err = fn(a)
-	}
+	return err
+}
+
+func (a *App) Configure(cnf ...Configuration) error {
+	var err error
+	a.Configuration = append(a.Configuration, cnf...)
+	err = runConf(a, a.Configuration...)
+	err = runConf(a, a.Config.deferred...)
 	if err != nil {
 		return err
 	}
 	a.Configured = true
+	return nil
+}
+
+func cengine(a *App) error {
+	if a.Engine == nil {
+		a.Engine = engine.DefaultEngine(StatusRule(a))
+	}
 	return nil
 }
 
@@ -47,12 +71,12 @@ func csession(a *App) error {
 }
 
 func ctemplating(a *App) error {
-	a.Env.TemplatorInit()
+	TemplatorInit(a)
 	return nil
 }
 
 func cstatic(a *App) error {
-	a.Env.StaticorInit()
+	StaticorInit(a)
 	return nil
 }
 
@@ -65,7 +89,6 @@ func cblueprints(a *App) error {
 	return nil
 }
 
-// Mode takes a string for development, production, or testing to set the App mode.
 func Mode(mode string, value bool) Configuration {
 	return func(a *App) error {
 		m := strings.Title(mode)
@@ -74,15 +97,12 @@ func Mode(mode string, value bool) Configuration {
 			if err != nil {
 				return err
 			}
-		} else {
-			return newError("mode must be Development, Testing, or Production; not %s", mode)
+			return nil
 		}
-		return nil
+		return xrr.NewError("mode must be Development, Testing, or Production; not %s", mode)
 	}
 }
 
-// EnvItem adds strings of the form "section_label:value" or "label:value" to
-// the Env store, bypassing and without reading a conf file.
 func EnvItem(items ...string) Configuration {
 	return func(a *App) error {
 		for _, item := range items {
@@ -100,57 +120,43 @@ func EnvItem(items ...string) Configuration {
 	}
 }
 
-// CtxFunc adds a single function accessible as a Context Function.
-func Extension(name string, fn interface{}) Configuration {
+func Extensions(fxs ...Fxtension) Configuration {
 	return func(a *App) error {
-		return a.Env.AddExtension(name, fn)
+		return a.Env.AddFxtensions(fxs...)
 	}
 }
 
-// CtxFuncs adds a map of functions accessible as Context Functions.
-func Extensions(fns map[string]interface{}) Configuration {
+func UseStaticor(s Staticor) Configuration {
 	return func(a *App) error {
-		return a.Env.AddExtensions(fns)
+		a.Env.Staticor = s
+		return nil
 	}
 }
 
-// Templating supplies a Templator to the App.
-func Templating(t Templator) Configuration {
+func UseTemplator(t Templator) Configuration {
 	return func(a *App) error {
 		a.Env.Templator = t
 		return nil
 	}
 }
 
-// TemplateFunction passes a template function to the env for Templator use.
-func TemplateFunction(name string, fn interface{}) Configuration {
-	return func(a *App) error {
-		a.Env.AddTplFunc(name, fn)
-		return nil
-	}
-}
-
-// TemplateFunction passes a map of functions to the env for Templator use.
-func TemplateFunctions(fns map[string]interface{}) Configuration {
-	return func(a *App) error {
-		a.Env.AddTplFuncs(fns)
-		return nil
-	}
-}
-
-// CtxProcessor adds a single template context processor to the App primary
-// Blueprint. This will affect all Blueprints & Routes.
 func CtxProcessor(name string, fn interface{}) Configuration {
 	return func(a *App) error {
-		a.CtxProcessor(name, fn)
+		a.AddCtxProcessor(name, fn)
 		return nil
 	}
 }
 
-// CtxProcessors adds a map of context processors to the App primary Blueprint.
 func CtxProcessors(fns map[string]interface{}) Configuration {
 	return func(a *App) error {
-		a.CtxProcessors(fns)
+		a.AddCtxProcessors(fns)
+		return nil
+	}
+}
+
+func WithAssets(ast ...*AssetFS) Configuration {
+	return func(a *App) error {
+		a.Env.Assets = append(a.Env.Assets, ast...)
 		return nil
 	}
 }

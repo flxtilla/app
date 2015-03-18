@@ -1,43 +1,54 @@
 package flotilla
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 )
 
 type (
-	// Staticor is an interface to handling static files requiring methods to
-	// get & set string directories as well as determine(and potentially handle
-	// however appropriate) existence of static files given a string and a Ctx.
+	// Staticor provides an interface to static files for an App.
 	Staticor interface {
+		// StaticDirs any number of strings and returns a string list for
+		// adding to and listing the Staticor directories.
 		StaticDirs(...string) []string
-		Exists(string, *Ctx) bool
+
+		// Exists takes a Ctx & string to determine if the Staticor can handle the
+		// the file designated by the string.
+		Exists(Ctx, string) bool
+
+		// Manage is a flotilla.Manage function used by the Staticor.
+		Manage(Ctx)
 	}
 
 	staticor struct {
+		app        *App
 		staticDirs []string
 	}
 )
 
-func (env *Env) StaticorInit() {
-	if env.Staticor == nil {
-		env.Staticor = NewStaticor(env)
+// StaticorInit intializes a staticor from the Staticor provided to App.Env.
+func StaticorInit(a *App) {
+	if a.Env.Staticor == nil {
+		a.Env.Staticor = NewStaticor(a)
 	}
 }
 
-// A string array of static dirs set in env.Store["staticdirectories"]
+// NewStaticor returns a new default flotilla Staticor.
+func NewStaticor(a *App) *staticor {
+	s := &staticor{app: a}
+	s.StaticDirs(s.app.Env.Store["STATIC_DIRECTORIES"].List()...)
+	return s
+}
+
+// StaticDirs takes any number of directories as string, adding them, and returning
+// a string array of static directories in Env.Store
 func (env *Env) StaticDirs(dirs ...string) []string {
 	storedirs := env.Store["STATIC_DIRECTORIES"].List(dirs...)
 	if env.Staticor != nil {
 		return env.Staticor.StaticDirs(storedirs...)
 	}
 	return storedirs
-}
-
-func NewStaticor(env *Env) *staticor {
-	s := &staticor{}
-	s.StaticDirs(env.Store["STATIC_DIRECTORIES"].List()...)
-	return s
 }
 
 func (s *staticor) StaticDirs(dirs ...string) []string {
@@ -47,13 +58,13 @@ func (s *staticor) StaticDirs(dirs ...string) []string {
 	return s.staticDirs
 }
 
-func appStaticFile(requested string, ctx *Ctx) bool {
+func (s *staticor) appStaticFile(requested string, c Ctx) bool {
 	exists := false
-	for _, dir := range ctx.App.StaticDirs() {
+	for _, dir := range s.app.StaticDirs() {
 		filepath.Walk(dir, func(path string, _ os.FileInfo, _ error) (err error) {
 			if filepath.Base(path) == requested {
 				f, _ := os.Open(path)
-				ctx.ServeFile(f)
+				servestatic(c, f)
 				exists = true
 			}
 			return err
@@ -62,30 +73,43 @@ func appStaticFile(requested string, ctx *Ctx) bool {
 	return exists
 }
 
-func appAssetFile(requested string, ctx *Ctx) bool {
+func (s *staticor) appAssetFile(requested string, c Ctx) bool {
 	exists := false
-	f, err := ctx.App.Assets.Get(requested)
+	f, err := s.app.Assets.Get(requested)
+	//fmt.Printf("%+v %+v %+v\n", f, err, requested)
+	//fmt.Printf("%+v\n", s.app.Assets)
 	if err == nil {
-		ctx.ServeFile(f)
+		servestatic(c, f)
 		exists = true
 	}
 	return exists
 }
 
-func (s *staticor) Exists(requested string, ctx *Ctx) bool {
-	exists := appStaticFile(requested, ctx)
+func (s *staticor) Exists(c Ctx, requested string) bool {
+	exists := s.appStaticFile(requested, c)
 	if !exists {
-		exists = appAssetFile(requested, ctx)
+		exists = s.appAssetFile(requested, c)
 	}
 	return exists
 }
 
-func handleStatic(ctx *Ctx) {
-	requested := filepath.Base(ctx.Request.URL.Path)
-	exists := ctx.App.Staticor.Exists(requested, ctx)
-	if !exists {
-		ctx.Abort(404)
+func (s *staticor) Manage(c Ctx) {
+	if !s.Exists(c, requestedfile(c)) {
+		abortstatic(c)
 	} else {
-		ctx.RW.WriteHeaderNow()
+		c.Call("headernow")
 	}
+}
+
+func requestedfile(c Ctx) string {
+	rq, _ := c.Call("request")
+	return filepath.Base(rq.(*http.Request).URL.Path)
+}
+
+func abortstatic(c Ctx) {
+	c.Call("abort", 404)
+}
+
+func servestatic(c Ctx, f http.File) {
+	c.Call("servefile", f)
 }

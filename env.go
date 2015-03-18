@@ -7,6 +7,7 @@ import (
 	"reflect"
 
 	"github.com/thrisp/flotilla/session"
+	"github.com/thrisp/flotilla/xrr"
 )
 
 var (
@@ -17,14 +18,15 @@ var (
 )
 
 type (
+	// Modes configure specific modes for later reference in the App; unless set,
+	// an App defaults to Development true, Production false, and Testing false.
 	Modes struct {
 		Development bool
 		Production  bool
 		Testing     bool
 	}
 
-	// The App environment containing configuration variables & their store
-	// as well as other info & data relevant to the app.
+	// Env is the primary environment reference for an App.
 	Env struct {
 		Mode *Modes
 		Store
@@ -32,109 +34,81 @@ type (
 		Assets
 		Staticor
 		Templator
-		extensions    map[string]interface{}
+		fxtensions    map[string]Fxtension
 		tplfunctions  map[string]interface{}
-		ctxprocessors map[string]interface{}
+		ctxprocessors map[string]reflect.Value
+		customstatus  map[int]*status
+		mkctx         MakeCtxFunc
 	}
 )
 
-func (e *Env) defaults() {
-	e.Store.addDefault("upload", "size", "10000000")             // bytes
-	e.Store.addDefault("secret", "key", "Flotilla;Secret;Key;1") // weak default value
-	e.Store.addDefault("session", "cookiename", "session")
-	e.Store.addDefault("session", "lifetime", "2629743")
-	e.Store.add("static", "directories", workingStatic)
-	e.Store.add("template", "directories", workingTemplates)
+func newEnv(a *App) *Env {
+	e := &Env{Mode: defaultModes(), Store: defaultStore()}
+	e.AddFxtensions(BuiltInExtensions(a)...)
+	return e
 }
 
-// EmptyEnv produces an Env with intialization but no configuration.
-func EmptyEnv() *Env {
-	return &Env{Mode: &Modes{true, false, false},
-		Store:         make(Store),
-		extensions:    make(map[string]interface{}),
-		tplfunctions:  make(map[string]interface{}),
-		ctxprocessors: make(map[string]interface{}),
-	}
+func defaultModes() *Modes {
+	return &Modes{true, false, false}
 }
 
-// NewEnv configures an intialized Env.
-func (env *Env) BaseEnv() {
-	env.AddExtensions(builtinextensions)
-	env.defaults()
-}
-
-// Merges an outside env instance with the calling Env.
-func (env *Env) MergeEnv(other *Env) {
-	env.MergeStore(other.Store)
-	for _, fs := range other.Assets {
-		env.Assets = append(env.Assets, fs)
-	}
-	env.StaticDirs(other.Store["STATIC_DIRECTORIES"].List()...)
-	env.TemplateDirs(other.Store["TEMPLATE_DIRECTORIES"].List()...)
-	env.AddExtensions(other.extensions)
-}
-
-// MergeStore merges a Store instance with the Env's Store, without replacement.
-func (env *Env) MergeStore(other Store) {
-	for k, v := range other {
-		if !v.defaultvalue {
-			if _, ok := env.Store[k]; !ok {
-				env.Store[k] = v
-			}
-		}
-	}
-}
-
-// SetMode sets the running mode for the App env by a string.
+// SetMode sets the provided Modes witht the provided boolean value.
+// e.g. env.SetMode("Production", true)
 func (env *Env) SetMode(mode string, value bool) error {
 	m := reflect.ValueOf(env.Mode).Elem().FieldByName(mode)
 	if m.CanSet() {
 		m.SetBool(value)
 		return nil
 	}
-	return newError("env could not be set to %s", mode)
+	return xrr.NewError("env could not be set to %s", mode)
 }
 
-func (env *Env) CtxProcessor(name string, fn interface{}) {
-	env.ctxprocessors[name] = fn
+// CurrentMode returns Modes specific to the App the provided Ctx is running within.
+func CurrentMode(c Ctx) *Modes {
+	m, _ := c.Call("mode")
+	return m.(*Modes)
 }
 
-func (env *Env) CtxProcessors(fns map[string]interface{}) {
+// AddCtxProcesor adds a ctxprocessor function with the name and function interface.
+func (env *Env) AddCtxProcessor(name string, fn interface{}) {
+	if env.ctxprocessors == nil {
+		env.ctxprocessors = make(map[string]reflect.Value)
+	}
+	env.ctxprocessors[name] = valueFunc(fn)
+}
+
+// Add AddCtxProcessors adds ctxprocessor functions from a map of string keyed interfaces.
+func (env *Env) AddCtxProcessors(fns map[string]interface{}) {
 	for k, v := range fns {
-		env.CtxProcessor(k, v)
+		env.AddCtxProcessor(k, v)
 	}
 }
 
-// AddExtension adds a single Ctx function with the name string, checking that
-// the function is a valid function returning 1 value, or 1 value and 1 error
-// value.
-func (env *Env) AddExtension(name string, fn interface{}) error {
-	err := validExtension(fn)
-	if err == nil {
-		env.extensions[name] = fn
-		return nil
+// AddExtensions adds extension functions from a map of string keyed interfaces.
+func (env *Env) AddFxtensions(fxs ...Fxtension) error {
+	var err error
+	if env.fxtensions == nil {
+		env.fxtensions = make(map[string]Fxtension)
+	}
+	for _, fx := range fxs {
+		err = validFxtension(fx)
+		if err != nil {
+			return err
+		}
+		env.fxtensions[fx.Name()] = fx
 	}
 	return err
 }
 
-// AddExtensions stores cross-handler functions in the Env as intermediate staging
-// for later use by Ctx.
-func (env *Env) AddExtensions(fns map[string]interface{}) error {
-	for k, v := range fns {
-		err := env.AddExtension(k, v)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// AddTplFuncs adds template functions stored in the Env for use by a Templator.
+// AddTplFunc adds a template function with the name and function interface.
 func (env *Env) AddTplFunc(name string, fn interface{}) {
+	if env.tplfunctions == nil {
+		env.tplfunctions = make(map[string]interface{})
+	}
 	env.tplfunctions[name] = fn
 }
 
-// AddTplFuncs adds template functions stored in the Env for use by a Templator.
+// AddTplFuncs adds template functions from a map of string keyed interfaces.
 func (env *Env) AddTplFuncs(fns map[string]interface{}) {
 	for k, v := range fns {
 		env.AddTplFunc(k, v)
@@ -144,7 +118,7 @@ func (env *Env) AddTplFuncs(fns map[string]interface{}) {
 func (env *Env) defaultsessionconfig() string {
 	secret := env.Store["SECRET_KEY"].Value
 	cookie_name := env.Store["SESSION_COOKIENAME"].Value
-	session_lifetime, _ := env.Store["SESSION_LIFETIME"].Int64()
+	session_lifetime := env.Store["SESSION_LIFETIME"].Int64()
 	prvdrcfg := fmt.Sprintf(`"ProviderConfig":"{\"maxage\": %d,\"cookieName\":\"%s\",\"securityKey\":\"%s\"}"`, session_lifetime, cookie_name, secret)
 	return fmt.Sprintf(`{"cookieName":"%s","enableSetCookie":false,"gclifetime":3600, %s}`, cookie_name, prvdrcfg)
 }
@@ -157,13 +131,20 @@ func (env *Env) defaultsessionmanager() *session.Manager {
 	return d
 }
 
-// SessionInit initializes the session using the SessionManager, or default if
-// no session manage is specified.
+// SessionInit intializes the SessionManager stored with the Env.
 func (env *Env) SessionInit() {
 	if env.SessionManager == nil {
 		env.SessionManager = env.defaultsessionmanager()
 	}
 	go env.SessionManager.GC()
+}
+
+// CustomStatus sets a custom status keyed by integer within the Env reference.
+func (env *Env) CustomStatus(s *status) {
+	if env.customstatus == nil {
+		env.customstatus = make(map[int]*status)
+	}
+	env.customstatus[s.code] = s
 }
 
 func init() {

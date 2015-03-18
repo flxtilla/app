@@ -4,10 +4,21 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/thrisp/flotilla/xrr"
 )
 
 var (
-	errorType = reflect.TypeOf((*error)(nil)).Elem()
+	rferrorType = reflect.TypeOf((*error)(nil)).Elem()
+
+	green   = string([]byte{27, 91, 57, 55, 59, 52, 50, 109})
+	white   = string([]byte{27, 91, 57, 48, 59, 52, 55, 109})
+	yellow  = string([]byte{27, 91, 57, 55, 59, 52, 51, 109})
+	red     = string([]byte{27, 91, 57, 55, 59, 52, 49, 109})
+	blue    = string([]byte{27, 91, 57, 55, 59, 52, 52, 109})
+	magenta = string([]byte{27, 91, 57, 55, 59, 52, 53, 109})
+	cyan    = string([]byte{27, 91, 57, 55, 59, 52, 54, 109})
+	reset   = string([]byte{27, 91, 48, 109})
 )
 
 func existsIn(s string, l []string) bool {
@@ -39,10 +50,9 @@ func isFunc(fn interface{}) bool {
 	return reflect.ValueOf(fn).Kind() == reflect.Func
 }
 
-// See https://github.com/zenazn/goji/blob/master/web/func_equal.go
 func equalFunc(a, b interface{}) bool {
 	if !isFunc(a) || !isFunc(b) {
-		panic("funcEqual: type error!")
+		panic("flotilla : funcEqual -- type error!")
 	}
 	av := reflect.ValueOf(&a).Elem()
 	bv := reflect.ValueOf(&b).Elem()
@@ -52,10 +62,10 @@ func equalFunc(a, b interface{}) bool {
 func valueFunc(fn interface{}) reflect.Value {
 	v := reflect.ValueOf(fn)
 	if v.Kind() != reflect.Func {
-		panic(newError("Provided:(%+v, type: %T), but it is not a function", fn, fn))
+		panic(xrr.NewError("flotilla : Provided (%+v, type: %T), but it is not a function", fn, fn))
 	}
 	if !goodFunc(v.Type()) {
-		panic(newError("Cannot use function %q with %d results\nreturn must be 1 value, or 1 value and 1 error value", fn, v.Type().NumOut()))
+		panic(xrr.NewError("flotilla: Cannot use function %q with %d results\nreturn must be 1 value, or 1 value and 1 error value", fn, v.Type().NumOut()))
 	}
 	return v
 }
@@ -64,18 +74,10 @@ func goodFunc(typ reflect.Type) bool {
 	switch {
 	case typ.NumOut() == 1:
 		return true
-	case typ.NumOut() == 2 && typ.Out(1) == errorType:
+	case typ.NumOut() == 2 && typ.Out(1) == rferrorType:
 		return true
 	}
 	return false
-}
-
-func reflectFuncs(fns map[string]interface{}) map[string]reflect.Value {
-	ret := make(map[string]reflect.Value)
-	for k, v := range fns {
-		ret[k] = valueFunc(v)
-	}
-	return ret
 }
 
 func canBeNil(typ reflect.Type) bool {
@@ -86,19 +88,18 @@ func canBeNil(typ reflect.Type) bool {
 	return false
 }
 
-// From http://golang.org/src/pkg/text/template/funcs.go
 func call(fn reflect.Value, args ...interface{}) (interface{}, error) {
 	typ := fn.Type()
 	numIn := typ.NumIn()
 	var dddType reflect.Type
 	if typ.IsVariadic() {
 		if len(args) < numIn-1 {
-			return nil, fmt.Errorf("wrong number of args: got %d want at least %d", len(args), numIn-1)
+			return nil, xrr.NewError("flotilla : wrong number of args -- got %d want at least %d", len(args), numIn-1)
 		}
 		dddType = typ.In(numIn - 1).Elem()
 	} else {
 		if len(args) != numIn {
-			return nil, fmt.Errorf("wrong number of args: got %d want %d", len(args), numIn)
+			return nil, xrr.NewError("flotilla : wrong number of args -- got %d want %d", len(args), numIn)
 		}
 	}
 	argv := make([]reflect.Value, len(args))
@@ -115,7 +116,7 @@ func call(fn reflect.Value, args ...interface{}) (interface{}, error) {
 			value = reflect.Zero(argType)
 		}
 		if !value.Type().AssignableTo(argType) {
-			return nil, fmt.Errorf("arg %d has type %s; should be %s", i, value.Type(), argType)
+			return nil, xrr.NewError("flotilla : arg %d has type %s -- should be %s", i, value.Type(), argType)
 		}
 		argv[i] = value
 	}
@@ -131,4 +132,58 @@ func dropTrailing(path string, trailing string) string {
 		return strings.Join(fp[0:len(fp)-1], "/")
 	}
 	return path
+}
+
+func validExtension(fn interface{}) error {
+	if goodFunc(valueFunc(fn).Type()) {
+		return nil
+	}
+	return xrr.NewError("function %q is not a valid Flotilla Ctx function; must be a function and return must be 1 value, or 1 value and 1 error value", fn)
+}
+
+func StatusColor(code int) (color string) {
+	switch {
+	case code >= 200 && code <= 299:
+		color = green
+	case code >= 300 && code <= 399:
+		color = white
+	case code >= 400 && code <= 499:
+		color = yellow
+	default:
+		color = red
+	}
+	return color
+}
+
+func MethodColor(method string) (color string) {
+	switch {
+	case method == "GET":
+		color = blue
+	case method == "POST":
+		color = cyan
+	case method == "PUT":
+		color = yellow
+	case method == "DELETE":
+		color = red
+	case method == "PATCH":
+		color = green
+	case method == "HEAD":
+		color = magenta
+	case method == "OPTIONS":
+		color = white
+	}
+	return color
+}
+
+func LogFmt(c *ctx) string {
+	st := c.Result.RStatus
+	md := c.Result.RMethod
+	return fmt.Sprintf("%v |%s %3d %s| %12v | %s |%s %s %-7s %s",
+		c.Result.RStop.Format("2006/01/02 - 15:04:05"),
+		StatusColor(st), st, reset,
+		c.Result.RLatency,
+		c.Result.RRequester,
+		MethodColor(md), reset, md,
+		c.Result.RPath,
+	)
 }
