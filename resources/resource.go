@@ -121,6 +121,26 @@ func assets_templates_test_asset_html() (*asset, error) {
 	return a, nil
 }
 
+var _assets_css_css_asset_css = []byte("\x1f\x8b\x08\x00\x00\x09\x6e\x88\x00\xff\x01\x00\x00\xff\xff\x00\x00\x00\x00\x00\x00\x00\x00")
+
+func assets_css_css_asset_css_bytes() ([]byte, error) {
+	return bindata_read(
+		_assets_css_css_asset_css,
+		"assets/css/css_asset.css",
+	)
+}
+
+func assets_css_css_asset_css() (*asset, error) {
+	bytes, err := assets_css_css_asset_css_bytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindata_file_info{name: "assets/css/css_asset.css", size: 0, mode: os.FileMode(436), modTime: time.Unix(1426617848, 0)}
+	a := &asset{bytes: bytes, info:  info}
+	return a, nil
+}
+
 // Asset loads and returns the asset for the given name.
 // It returns an error if the asset could not be found or
 // could not be loaded.
@@ -176,6 +196,7 @@ var _bindata = map[string]func() (*asset, error){
 	"assets/bin.conf": assets_bin_conf,
 	"assets/templates/layout_asset.html": assets_templates_layout_asset_html,
 	"assets/templates/test_asset.html": assets_templates_test_asset_html,
+	"assets/css/css_asset.css": assets_css_css_asset_css,
 }
 
 // AssetDir returns the file names below a certain
@@ -220,6 +241,10 @@ type _bintree_t struct {
 var _bintree = &_bintree_t{nil, map[string]*_bintree_t{
 	"assets": &_bintree_t{nil, map[string]*_bintree_t{
 		"bin.conf": &_bintree_t{assets_bin_conf, map[string]*_bintree_t{
+		}},
+		"css": &_bintree_t{nil, map[string]*_bintree_t{
+			"css_asset.css": &_bintree_t{assets_css_css_asset_css, map[string]*_bintree_t{
+			}},
 		}},
 		"templates": &_bintree_t{nil, map[string]*_bintree_t{
 			"layout_asset.html": &_bintree_t{assets_templates_layout_asset_html, map[string]*_bintree_t{

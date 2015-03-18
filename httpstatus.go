@@ -71,7 +71,7 @@ func panicsignal(c Ctx) {
 func panicserve(c Ctx, b bytes.Buffer) {
 	servePanic := fmt.Sprintf(panicHtml, b.String())
 	_, _ = c.Call("headermodify", "set", []string{"Content-Type", "text/html"})
-	_, _ = c.Call("writetoresponse", []byte(servePanic))
+	_, _ = c.Call("writetoresponse", servePanic)
 }
 
 // Panics returns any panic type error messages attached to the Ctx.
@@ -124,7 +124,7 @@ func (s status) panics(c Ctx) {
 func (s status) last(c Ctx) {
 	_, _ = c.Call("push", func(c Ctx) {
 		if !IsWritten(c) {
-			_, _ = c.Call("writetoresponse", []byte(fmt.Sprintf(statusText, s.code, http.StatusText(s.code))))
+			_, _ = c.Call("writetoresponse", fmt.Sprintf(statusText, s.code, http.StatusText(s.code)))
 		}
 	})
 }
@@ -133,7 +133,7 @@ func (s status) last(c Ctx) {
 func StatusRule(a *App) engine.Rule {
 	return func(rw http.ResponseWriter, rq *http.Request, rs *engine.Result) {
 		s := newStatus(rs.Code)
-		c := NewCtx(a.extensions, rs)
+		c := NewCtx(a.fxtensions, rs)
 		c.reset(rq, rw, s.managers)
 		c.Run()
 		c.Cancel()
@@ -146,7 +146,7 @@ func CustomStatusRule(a *App, code int, m ...Manage) engine.Rule {
 	s := newStatus(code, m...)
 	a.CustomStatus(s)
 	return func(rw http.ResponseWriter, rq *http.Request, rs *engine.Result) {
-		c := NewCtx(a.extensions, rs)
+		c := NewCtx(a.fxtensions, rs)
 		c.reset(rq, rw, s.managers)
 		c.Call("start", a.SessionManager)
 		c.Run()

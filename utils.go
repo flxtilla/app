@@ -1,6 +1,7 @@
 package flotilla
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -8,7 +9,7 @@ import (
 )
 
 var (
-	errorType = reflect.TypeOf((*error)(nil)).Elem()
+	rferrorType = reflect.TypeOf((*error)(nil)).Elem()
 
 	green   = string([]byte{27, 91, 57, 55, 59, 52, 50, 109})
 	white   = string([]byte{27, 91, 57, 48, 59, 52, 55, 109})
@@ -73,18 +74,10 @@ func goodFunc(typ reflect.Type) bool {
 	switch {
 	case typ.NumOut() == 1:
 		return true
-	case typ.NumOut() == 2 && typ.Out(1) == errorType:
+	case typ.NumOut() == 2 && typ.Out(1) == rferrorType:
 		return true
 	}
 	return false
-}
-
-func reflectFuncs(fns map[string]interface{}) map[string]reflect.Value {
-	ret := make(map[string]reflect.Value)
-	for k, v := range fns {
-		ret[k] = valueFunc(v)
-	}
-	return ret
 }
 
 func canBeNil(typ reflect.Type) bool {
@@ -180,4 +173,17 @@ func MethodColor(method string) (color string) {
 		color = white
 	}
 	return color
+}
+
+func LogFmt(c *ctx) string {
+	st := c.Result.RStatus
+	md := c.Result.RMethod
+	return fmt.Sprintf("%v |%s %3d %s| %12v | %s |%s %s %-7s %s",
+		c.Result.RStop.Format("2006/01/02 - 15:04:05"),
+		StatusColor(st), st, reset,
+		c.Result.RLatency,
+		c.Result.RRequester,
+		MethodColor(md), reset, md,
+		c.Result.RPath,
+	)
 }

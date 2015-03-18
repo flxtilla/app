@@ -76,6 +76,8 @@ func (s *staticor) appStaticFile(requested string, c Ctx) bool {
 func (s *staticor) appAssetFile(requested string, c Ctx) bool {
 	exists := false
 	f, err := s.app.Assets.Get(requested)
+	//fmt.Printf("%+v %+v %+v\n", f, err, requested)
+	//fmt.Printf("%+v\n", s.app.Assets)
 	if err == nil {
 		servestatic(c, f)
 		exists = true

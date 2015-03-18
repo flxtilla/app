@@ -28,33 +28,32 @@ func NewResult(code int, rule Rule, params Params, tsr bool) *Result {
 }
 
 type Recorder struct {
-	start     time.Time
-	stop      time.Time
-	latency   time.Duration
-	status    int
-	method    string
-	path      string
-	requester string
+	RStart     time.Time
+	RStop      time.Time
+	RLatency   time.Duration
+	RStatus    int
+	RMethod    string
+	RPath      string
+	RRequester string
 }
 
 func newRecorder() *Recorder {
-	return &Recorder{start: time.Now()}
+	return &Recorder{RStart: time.Now()}
 }
 
 func (r *Recorder) StopRecorder() {
-	r.stop = time.Now()
+	r.RStop = time.Now()
 }
 
 func (r *Recorder) Latency() time.Duration {
-	return r.stop.Sub(r.start)
+	return r.RStop.Sub(r.RStart)
 }
 
 func (r *Recorder) PostProcess(req *http.Request, withstatus int) {
 	r.StopRecorder()
-	r.stop = time.Now()
-	r.latency = r.Latency()
-	r.requester = req.RemoteAddr
-	r.method = req.Method
-	r.path = req.URL.Path
-	r.status = withstatus
+	r.RLatency = r.Latency()
+	r.RRequester = req.RemoteAddr
+	r.RMethod = req.Method
+	r.RPath = req.URL.Path
+	r.RStatus = withstatus
 }

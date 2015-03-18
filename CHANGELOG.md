@@ -1,20 +1,26 @@
 ##Changelog
 
-### Flotilla 1.0.0 (tbd)
+### Flotilla 1.0.0 (18.3.2015)
 
 - [ground-up reassembly & rewrite from former codebase](https://github.com/fc-thrisp-hurrata-dlm-graveyard/flotilla-defunct)
-- eliminate dependency on [Engine](https://github.com/thrisp/engine)
-- revised Ctx to support [context.Context](https://github.com/golang/net/tree/master/context) interface
+- eliminate dependency on former [Engine](https://github.com/fc-thrisp-hurrata-dlm-graveyard/engine-defunct) package
+- routing subpackage: engine defining Engine interface, for per app router configuration
+- Ctx interface, supporting per Blueprint ctx configuration
+- revised Ctx to support [context.Context](https://github.com/golang/net/tree/master/context) interface (proof of concept requiring more work)
+- new extension interface for extension: Fxtensions(`Flotilla Extension`) to manage & test multiple ctx extension functions as a unit.
+- improved testing
+- errors subpackage: xrr defining an interface for uniform, reusable erroring 
+- refactor, cleanup and subsequent new messes overall 
 
 ### Flotilla 0.3.2 ~unreleased
 
 - change 'ctx functions' to 'extensions'
 
-### Flotilla 0.3.1 (12.16.2014)
+### Flotilla 0.3.1 (16.12.2014)
 
 - update travis.yml to accomodate 1.4/1.3 cover package path difference
 
-### Flotilla 0.3.0 (12.15.2014)
+### Flotilla 0.3.0 (15.12.2014)
 
 - new Blueprint concepts 
 - eliminate old Blueprint interface, merge RouteGroup & Blueprint idioms to one
@@ -33,7 +39,7 @@
 - deferral of ctx functions until after all handlers have run
 - bugfixes & refactoring  
 
-### Flotilla 0.1.0 (10.17.2014)
+### Flotilla 0.1.0 (17.10.2014)
 
 - basic adherence to semantic versioning
 - 'R' type for per-route handled context
@@ -44,7 +50,7 @@
 - essential testing, bugfixes, and refactoring  
 
 
-### Flotilla 0.0.2 (9.24.2014)
+### Flotilla 0.0.2 (24.9.2014)
 
 - extend Ctx with cross handler functions
 - simple flag parsing for run mode (production, development, testing)
@@ -54,7 +60,7 @@
 - url formatting by route, i.e. creating urls by route name & parameters
 
 
-### Flotilla 0.0.1 (8.20.2014)
+### Flotilla 0.0.1 (20.8.2014)
 
 - reforked, renamed as Flotilla
 - ini style configuration read into app environment
@@ -63,6 +69,6 @@
 - provisions for binary static or template Asset inclusion per engine
  
 
-### Fleet 0.0.0 (7.22.2014)
+### Fleet 0.0.0 (22.7.2014)
 
 - forked from https://github.com/gin-gonic/gin

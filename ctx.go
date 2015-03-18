@@ -3,7 +3,6 @@ package flotilla
 import (
 	"errors"
 	"net/http"
-	"reflect"
 	"sync"
 	"time"
 
@@ -38,7 +37,7 @@ var Canceled = errors.New("flotilla.Ctx canceled")
 // App.Ctx is the default function for making a default ctx fitting the Ctx interface.
 func (a *App) Ctx() MakeCtxFunc {
 	return func(rw http.ResponseWriter, rq *http.Request, rs *engine.Result, rt *Route) Ctx {
-		c := NewCtx(a.extensions, rs)
+		c := NewCtx(a.fxtensions, rs)
 		c.reset(rq, rw, rt.managers)
 		c.Call("start", a.SessionManager)
 		return c
@@ -141,12 +140,11 @@ func emptyCtx() *ctx {
 	return &ctx{handlers: defaulthandlers(), Erroror: xrr.DefaultErroror()}
 }
 
-// NewCtx returns a default ctx, given a map of potential Extensions and an
-// Engine Result.
-func NewCtx(ext map[string]reflect.Value, rs *engine.Result) *ctx {
+// NewCtx returns a default ctx, given a map of Fxtensions and an Engine Result.
+func NewCtx(fxt map[string]Fxtension, rs *engine.Result) *ctx {
 	c := emptyCtx()
 	c.Result = rs
-	c.Extensor = newextensor(ext, c)
+	c.Extensor = newextensor(fxt, c)
 	c.RW = &c.rw
 	return c
 }
@@ -156,6 +154,10 @@ func (c *ctx) Run() {
 	c.Next()
 	for _, fn := range c.deferred {
 		fn(c)
+	}
+	if !CurrentMode(c).Production {
+		c.PostProcess(c.Request, c.RW.Status())
+		c.Call("out", LogFmt(c))
 	}
 }
 

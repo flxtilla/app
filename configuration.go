@@ -1,7 +1,6 @@
 package flotilla
 
 import (
-	"log"
 	"strings"
 
 	"github.com/thrisp/flotilla/engine"
@@ -72,7 +71,7 @@ func csession(a *App) error {
 }
 
 func ctemplating(a *App) error {
-	a.Env.TemplatorInit()
+	TemplatorInit(a)
 	return nil
 }
 
@@ -121,19 +120,20 @@ func EnvItem(items ...string) Configuration {
 	}
 }
 
-func Extension(name string, fn interface{}) Configuration {
+func Extensions(fxs ...Fxtension) Configuration {
 	return func(a *App) error {
-		return a.Env.AddExtension(name, fn)
+		return a.Env.AddFxtensions(fxs...)
 	}
 }
 
-func Extensions(fns map[string]interface{}) Configuration {
+func UseStaticor(s Staticor) Configuration {
 	return func(a *App) error {
-		return a.Env.AddExtensions(fns)
+		a.Env.Staticor = s
+		return nil
 	}
 }
 
-func Templating(t Templator) Configuration {
+func UseTemplator(t Templator) Configuration {
 	return func(a *App) error {
 		a.Env.Templator = t
 		return nil
@@ -150,13 +150,6 @@ func CtxProcessor(name string, fn interface{}) Configuration {
 func CtxProcessors(fns map[string]interface{}) Configuration {
 	return func(a *App) error {
 		a.AddCtxProcessors(fns)
-		return nil
-	}
-}
-
-func Logger(l *log.Logger) Configuration {
-	return func(a *App) error {
-		a.Messaging.Logger = l
 		return nil
 	}
 }

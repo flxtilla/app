@@ -3,8 +3,8 @@ package flotilla
 import (
 	"bytes"
 	"fmt"
-	"testing"
 	"strings"
+	"testing"
 )
 
 func callStatus(status int) Manage {
@@ -61,7 +61,7 @@ func Test500(t *testing.T) {
 }
 
 func Custom404(c Ctx) {
-	c.Call("serveplain", 404, []byte("I AM NOT FOUND :: 404"))
+	c.Call("serveplain", 404, "I AM NOT FOUND :: 404")
 }
 
 func customStatus404(method, expects string, t *testing.T) {
@@ -79,7 +79,7 @@ func customStatus404(method, expects string, t *testing.T) {
 }
 
 func Custom418(c Ctx) {
-	c.Call("serveplain", 418, []byte("I AM TEAPOT :: 418"))
+	c.Call("serveplain", 418, "I AM TEAPOT :: 418")
 }
 
 func customStatus(method, expects string, status int, m Manage, t *testing.T) {

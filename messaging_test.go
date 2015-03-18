@@ -1,44 +1,43 @@
 package flotilla
 
-/*
 import (
 	"fmt"
 	"testing"
 )
 
+func testsignalq(t *testing.T, a *App, against func(*testing.T, Signal)) {
+	go func() {
+		for msg := range a.Signals {
+			against(t, msg)
+		}
+	}()
+}
+
 func testSignal(method string, t *testing.T) {
-	var sent bool = false
-	f := New("signals_test")
-	testsignalq := func() {
-		go func() {
-			for msg := range f.Signals {
-				m := fmt.Sprintf("%s", msg)
-				if m != "TEST" {
-					t.Errorf(fmt.Sprintf("Read signal is  %s not `TEST`", msg))
-				}
-			}
-		}()
-	}
-	testsignalq()
+	a := New("testSignal")
+	testsignalq(t, a, func(t *testing.T, msg Signal) {
+		m := fmt.Sprintf("%s", msg)
+		if m != "TEST" {
+			t.Errorf(fmt.Sprintf("Read signal is  %s not `TEST`", msg))
+		}
+	})
 	testqueue := func(s string) {
 		if s != "SENT" {
 			t.Errorf("Read signal is not `SENT`")
 		}
 	}
-	f.Queues["testqueue"] = testqueue
-	rt := NewRoute(method, "/test_signal_sent", false, []Manage{func(c *Ctx) {
-		sent = true
-		f.Emit("TEST")
+	a.Queues["testqueue"] = testqueue
+	a.Manage(NewRoute(method, "/test_signal_sent", false, []Manage{func(c Ctx) {
+		a.Emit("TEST")
 		for i := 0; i < 10; i++ {
-			f.Send("testqueue", "SENT")
+			a.Send("testqueue", "SENT")
+			a.Send("notaqueue", "TEST")
 		}
-	}})
-	f.Manage(rt)
-	f.Configure(f.Configuration...)
-	PerformRequest(f, method, "/test_signal_sent")
-	if sent == false {
-		t.Errorf("Signal handler was not invoked.")
-	}
+	}}))
+	a.Configure()
+	p := NewPerformer(t, a, 200, method, "/test_signal_sent")
+	performFor(p)
+
 }
 
 func TestSignal(t *testing.T) {
@@ -46,4 +45,3 @@ func TestSignal(t *testing.T) {
 		testSignal(m, t)
 	}
 }
-*/

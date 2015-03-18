@@ -34,7 +34,7 @@ type (
 		Assets
 		Staticor
 		Templator
-		extensions    map[string]reflect.Value
+		fxtensions    map[string]Fxtension
 		tplfunctions  map[string]interface{}
 		ctxprocessors map[string]reflect.Value
 		customstatus  map[int]*status
@@ -44,7 +44,7 @@ type (
 
 func newEnv(a *App) *Env {
 	e := &Env{Mode: defaultModes(), Store: defaultStore()}
-	e.AddExtensions(BuiltInExtensions(a))
+	e.AddFxtensions(BuiltInExtensions(a)...)
 	return e
 }
 
@@ -84,35 +84,20 @@ func (env *Env) AddCtxProcessors(fns map[string]interface{}) {
 	}
 }
 
-// MergeExtensions merges a map of string keyed reflect.Value functions with
-// the Env extensions.
-func (env *Env) MergeExtensions(fns map[string]reflect.Value) {
-	for k, v := range fns {
-		env.extensions[k] = v
-	}
-}
-
-// AddExtension adds an extension function with the name and function interface.
-func (env *Env) AddExtension(name string, fn interface{}) error {
-	if env.extensions == nil {
-		env.extensions = make(map[string]reflect.Value)
-	}
-	err := validExtension(fn)
-	if err == nil {
-		env.extensions[name] = valueFunc(fn)
-	}
-	return err
-}
-
 // AddExtensions adds extension functions from a map of string keyed interfaces.
-func (env *Env) AddExtensions(fns map[string]interface{}) error {
-	for k, v := range fns {
-		err := env.AddExtension(k, v)
+func (env *Env) AddFxtensions(fxs ...Fxtension) error {
+	var err error
+	if env.fxtensions == nil {
+		env.fxtensions = make(map[string]Fxtension)
+	}
+	for _, fx := range fxs {
+		err = validFxtension(fx)
 		if err != nil {
 			return err
 		}
+		env.fxtensions[fx.Name()] = fx
 	}
-	return nil
+	return err
 }
 
 // AddTplFunc adds a template function with the name and function interface.

@@ -132,3 +132,12 @@ func basiccookie(name string, value string, opts ...interface{}) string {
 	}
 	return b.String()
 }
+
+var cookiefxtension = map[string]interface{}{
+	"cookie":       cookie,
+	"securecookie": securecookie,
+	"cookies":      cookies,
+	"readcookies":  readcookies,
+}
+
+var CookieFxtension Fxtension = MakeFxtension("cookiefxtension", cookiefxtension)

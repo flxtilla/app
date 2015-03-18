@@ -31,9 +31,9 @@ type (
 )
 
 // TemplatorInit intializes the default Templator if none is listed with the Env.
-func (env *Env) TemplatorInit() {
-	if env.Templator == nil {
-		env.Templator = NewTemplator(env)
+func TemplatorInit(a *App) {
+	if a.Env.Templator == nil {
+		a.Env.Templator = NewTemplator(a.Env)
 	}
 }
 

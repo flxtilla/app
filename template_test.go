@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,6 +81,7 @@ func TestDefaultTemplating(t *testing.T) {
 	a := New("template",
 		Mode("testing", true),
 		WithAssets(TestAsset),
+		CtxProcessor("Hi1", tstrg),
 		CtxProcessors(tstctxprc),
 	)
 
@@ -136,4 +138,37 @@ func TestDefaultTemplating(t *testing.T) {
 	performFor(p)
 
 	templatecontains(t, p.response.Body.String(), `<title>rendered from test template test_asset.html</title>`)
+}
+
+type testtemplator struct{}
+
+func (tt *testtemplator) Render(w io.Writer, s string, i interface{}) error {
+	_, err := w.Write([]byte("test templator"))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (tt *testtemplator) ListTemplateDirs() []string {
+	return []string{"test"}
+}
+
+func (tt *testtemplator) ListTemplates() []string {
+	return []string{"test_template"}
+}
+
+func (tt *testtemplator) UpdateTemplateDirs(...string) {}
+
+func TestTemplator(t *testing.T) {
+	tt := &testtemplator{}
+	a := New("external templator", UseTemplator(tt))
+	a.GET("/templator/", func(c Ctx) { c.Call("rendertemplate", "test.html", "test data") })
+	a.Configure()
+	p := NewPerformer(t, a, 200, "GET", "/templator/")
+	performFor(p)
+	b := p.response.Body.String()
+	if b != "test templator" {
+		t.Errorf(`Test external templator rendered %s, not "test templator"`, b)
+	}
 }
