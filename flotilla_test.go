@@ -50,7 +50,7 @@ func performFor(p *Performer) *Performer {
 	p.h.ServeHTTP(p.response, p.request)
 
 	if p.response.Code != p.code {
-		p.t.Errorf("Status code should be %d, was %d", p.code, p.response.Code)
+		p.t.Errorf("%s :: %s\nStatus code should be %d, was %d\n", p.request.Method, p.request.URL.Path, p.code, p.response.Code)
 	}
 
 	return p
@@ -77,6 +77,40 @@ func testRouteOK(method string, t *testing.T) {
 func TestRouteOK(t *testing.T) {
 	for _, m := range METHODS {
 		testRouteOK(m, t)
+	}
+}
+
+type rx struct {
+	method  string
+	passed  bool
+	runonce bool
+	rt      *Route
+}
+
+func TestMultipleRoutesSameMethodOK(t *testing.T) {
+	var rtx []*rx
+	for _, m := range METHODS {
+		mkrx := &rx{
+			method:  m,
+			runonce: false,
+			passed:  false,
+		}
+		mkrx.rt = NewRoute(m, "/test", false, []Manage{func(c Ctx) { mkrx.passed, mkrx.runonce = true, true }})
+		rtx = append(rtx, mkrx)
+	}
+	var rts []*Route
+	for _, x := range rtx {
+		rts = append(rts, x.rt)
+	}
+	a := testApp("testRoutesOK", rts...)
+	for _, m := range METHODS {
+		p := NewPerformer(t, a, 200, m, "/test")
+		performFor(p)
+	}
+	for _, x := range rtx {
+		if x.passed != true && x.runonce != true {
+			t.Errorf("Route with same path, but differing method was not registered or run: %+v", x)
+		}
 	}
 }
 
