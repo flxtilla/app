@@ -58,7 +58,7 @@ func testBlueprint(method string, t *testing.T) {
 
 	f.RegisterBlueprints(b)
 
-	f.Configure(f.Configuration...)
+	f.Configure()
 
 	expected := "/blueprint/test_blueprint"
 
@@ -95,23 +95,29 @@ func TestBlueprint(t *testing.T) {
 }
 
 func registerBlueprints(method string, t *testing.T) {
-	var passed1, passed2 bool
+	var passed0, passed1, passed2 bool
 	f := New("flotilla_test_BlueprintMerge")
+	m0 := func(c Ctx) { passed0 = true }
 	m1 := func(c Ctx) { passed1 = true }
 	m2 := func(c Ctx) { passed2 = true }
+	a := NewBlueprint("/")
+	zero := NewRoute(method, "/zero/:param", false, []Manage{m0})
+	a.Manage(zero)
 	b := NewBlueprint("/blueprint")
 	one := NewRoute(method, "/one/:param", false, []Manage{m1})
 	b.Manage(one)
 	c := NewBlueprint("/blueprint")
 	two := NewRoute(method, "/two/:param", false, []Manage{m2})
 	c.Manage(two)
-	f.RegisterBlueprints(b, c)
-	f.Configure(f.Configuration...)
+	f.RegisterBlueprints(a, b, c)
+	f.Configure()
+	p0 := NewPerformer(t, f, 200, method, "/zero/test")
+	performFor(p0)
 	p1 := NewPerformer(t, f, 200, method, "/blueprint/one/test")
 	performFor(p1)
 	p2 := NewPerformer(t, f, 200, method, "/blueprint/two/test")
 	performFor(p2)
-	if passed1 != true && passed2 != true {
+	if passed0 != true && passed1 != true && passed2 != true {
 		t.Errorf("Blueprint routes were not merged properly.")
 	}
 }
@@ -145,7 +151,7 @@ func mountBlueprint(method string, t *testing.T) {
 
 	f.RegisterBlueprints(b)
 
-	f.Configure(f.Configuration...)
+	f.Configure()
 
 	err := f.Mount("/cannot", b)
 

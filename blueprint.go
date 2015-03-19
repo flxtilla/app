@@ -180,7 +180,7 @@ func (b *Blueprint) UseAt(index int, managers ...Manage) {
 
 func (b *Blueprint) routeExists(route *Route) bool {
 	for _, r := range b.Routes {
-		if route.path == r.path {
+		if (route.path == r.path) && (route.method == r.method) {
 			return true
 		}
 	}
