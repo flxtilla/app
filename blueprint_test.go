@@ -13,7 +13,7 @@ func testBlueprint(method string, t *testing.T) {
 	var inc int
 	var incis bool
 
-	f := New("flotilla_test_Blueprint")
+	a := testApp(t, "testBlueprint", nil, nil)
 
 	b := NewBlueprint("/blueprint")
 
@@ -56,13 +56,13 @@ func testBlueprint(method string, t *testing.T) {
 
 	reflect.ValueOf(b).MethodByName(method).Call([]reflect.Value{reflect.ValueOf("/test_blueprint"), reflect.ValueOf(m)})
 
-	f.RegisterBlueprints(b)
+	a.RegisterBlueprints(b)
 
-	f.Configure()
+	a.Configure()
 
 	expected := "/blueprint/test_blueprint"
 
-	p := NewPerformer(t, f, 200, method, expected)
+	p := NewPerformer(t, a, 200, method, expected)
 
 	performFor(p)
 
@@ -96,30 +96,31 @@ func TestBlueprint(t *testing.T) {
 
 func registerBlueprints(method string, t *testing.T) {
 	var passed0, passed1, passed2 bool
-	f := New("flotilla_test_BlueprintMerge")
+	a := testApp(t, "testRegisterBlueprints", nil, nil)
 	m0 := func(c Ctx) { passed0 = true }
 	m1 := func(c Ctx) { passed1 = true }
 	m2 := func(c Ctx) { passed2 = true }
-	a := NewBlueprint("/")
+	b0 := NewBlueprint("/")
 	zero := NewRoute(method, "/zero/:param", false, []Manage{m0})
-	a.Manage(zero)
-	b := NewBlueprint("/blueprint")
-	one := NewRoute(method, "/one/:param", false, []Manage{m1})
-	b.Manage(one)
-	c := NewBlueprint("/blueprint")
-	two := NewRoute(method, "/two/:param", false, []Manage{m2})
-	c.Manage(two)
-	f.RegisterBlueprints(a, b, c)
-	f.Configure()
-	p0 := NewPerformer(t, f, 200, method, "/zero/test")
+	b0.Manage(zero)
+	b1 := NewBlueprint("/blueprint")
+	one := NewRoute(method, "/route/one", false, []Manage{m1})
+	b1.Manage(one)
+	b2 := NewBlueprint("/blueprint")
+	two := NewRoute(method, "/route/two", false, []Manage{m2})
+	b2.Manage(two)
+	a.RegisterBlueprints(b0, b1, b2)
+	a.Configure()
+	p0 := NewPerformer(t, a, 200, method, "/zero/test")
 	performFor(p0)
-	p1 := NewPerformer(t, f, 200, method, "/blueprint/one/test")
+	p1 := NewPerformer(t, a, 200, method, "/blueprint/route/one")
 	performFor(p1)
-	p2 := NewPerformer(t, f, 200, method, "/blueprint/two/test")
+	p2 := NewPerformer(t, a, 200, method, "/blueprint/route/two")
 	performFor(p2)
 	if passed0 != true && passed1 != true && passed2 != true {
 		t.Errorf("Blueprint routes were not merged properly.")
 	}
+	//check routes in app against added routes
 }
 
 func TestBlueprintRegister(t *testing.T) {
@@ -131,7 +132,7 @@ func TestBlueprintRegister(t *testing.T) {
 func mountBlueprint(method string, t *testing.T) {
 	var passed bool
 
-	f := New("flotilla_test_BlueprintMount")
+	a := testApp(t, "testMountBlueprint", nil, nil)
 
 	b := NewBlueprint("/mount")
 
@@ -145,15 +146,15 @@ func mountBlueprint(method string, t *testing.T) {
 
 	b.Manage(two)
 
-	f.Mount("/test/one", b)
+	a.Mount("/test/one", b)
 
-	f.Mount("/test/two", b)
+	a.Mount("/test/two", b)
 
-	f.RegisterBlueprints(b)
+	a.RegisterBlueprints(b)
 
-	f.Configure()
+	a.Configure()
 
-	err := f.Mount("/cannot", b)
+	err := a.Mount("/cannot", b)
 
 	if err == nil {
 		t.Errorf("mounting a registered blueprint return no error")
@@ -171,12 +172,12 @@ func mountBlueprint(method string, t *testing.T) {
 		passed = false
 	}
 
-	perform("/mount/mounted/1", method, f)
-	perform("/mount/mounted/2", method, f)
-	perform("/test/one/mount/mounted/1", method, f)
-	perform("/test/two/mount/mounted/1", method, f)
-	perform("/test/one/mount/mounted/2", method, f)
-	perform("/test/two/mount/mounted/2", method, f)
+	perform("/mount/mounted/1", method, a)
+	perform("/mount/mounted/2", method, a)
+	perform("/test/one/mount/mounted/1", method, a)
+	perform("/test/two/mount/mounted/1", method, a)
+	perform("/test/one/mount/mounted/2", method, a)
+	perform("/test/two/mount/mounted/2", method, a)
 }
 
 func TestMountBlueprint(t *testing.T) {

@@ -12,12 +12,15 @@ func FauxConf() Configuration {
 }
 
 func TestConfiguration(t *testing.T) {
-	a := New(
-		"conf",
-		Mode("testing", true),
-		Mode("prodnnuction", true),
-		EnvItem("value:set", "section_value:set"),
-		FauxConf(),
+	a := testApp(
+		t,
+		"configurationTest",
+		testConf(
+			Mode("prodnnuction", true),
+			EnvItem("value:set", "section_value:set"),
+			FauxConf(),
+		),
+		nil,
 	)
 
 	var testmodes *Modes

@@ -38,6 +38,13 @@ var tplfuncs map[string]interface{} = map[string]interface{}{
 	"Hello": func(s string) string { return fmt.Sprintf("Hello World!: %s", s) },
 }
 
+func tplfuncsconf(tf map[string]interface{}) Configuration {
+	return func(a *App) error {
+		a.Env.AddTplFuncs(tf)
+		return nil
+	}
+}
+
 func tstrg(c Ctx) string {
 	return fmt.Sprintf("returned STRING")
 }
@@ -78,19 +85,24 @@ func templatecontains(t *testing.T, body string, mustcontain string) {
 }
 
 func TestDefaultTemplating(t *testing.T) {
-	a := New("template",
-		Mode("testing", true),
-		WithAssets(TestAsset),
-		CtxProcessor("Hi1", tstrg),
-		CtxProcessors(tstctxprc),
+	a := testApp(
+		t,
+		"testDefaultTemplating",
+		testConf(
+			WithAssets(TestAsset),
+			tplfuncsconf(tplfuncs),
+			CtxProcessor("Hi1", tstrg),
+			CtxProcessors(tstctxprc),
+		),
+		testRoutes(
+			NewRoute(
+				"GET", "/template", false, []Manage{tt},
+			),
+			NewRoute(
+				"GET", "/asset_template", false, []Manage{at},
+			),
+		),
 	)
-
-	a.Env.AddTplFuncs(tplfuncs)
-
-	a.GET("/template", tt)
-	a.GET("/asset_template", at)
-
-	a.Configure()
 
 	a.Env.TemplateDirs(testtemplatedirectory())
 
@@ -161,10 +173,22 @@ func (tt *testtemplator) ListTemplates() []string {
 func (tt *testtemplator) UpdateTemplateDirs(...string) {}
 
 func TestTemplator(t *testing.T) {
-	tt := &testtemplator{}
-	a := New("external templator", UseTemplator(tt))
-	a.GET("/templator/", func(c Ctx) { c.Call("rendertemplate", "test.html", "test data") })
-	a.Configure()
+	ttr := &testtemplator{}
+	a := testApp(
+		t,
+		"testExternalTemplator",
+		testConf(
+			UseTemplator(ttr),
+		),
+		testRoutes(
+			NewRoute(
+				"GET",
+				"/templator/",
+				false,
+				[]Manage{tt},
+			),
+		),
+	)
 	p := NewPerformer(t, a, 200, "GET", "/templator/")
 	performFor(p)
 	b := p.response.Body.String()

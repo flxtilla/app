@@ -22,7 +22,8 @@ func routestring(status int) string {
 }
 
 func testStatus(method, expects string, status int, t *testing.T) {
-	a := testApp("statuses", callStatusRoute(method, routestring(status), status))
+	rts := testRoutes(callStatusRoute(method, routestring(status), status))
+	a := testApp(t, "statuses", nil, rts)
 
 	p := NewPerformer(t, a, status, method, routestring(status))
 
@@ -45,13 +46,12 @@ func testpanic(c Ctx) {
 
 func test500(method string, t *testing.T) {
 	pnc := NewRoute(method, routestring(500), false, []Manage{testpanic})
-	a := testApp("panic", pnc)
+	a := testApp(t, "panic", nil, testRoutes(pnc))
 	p := NewPerformer(t, a, 500, method, routestring(500))
 	performFor(p)
 	if !strings.Contains(p.response.Body.String(), "Test panic!") {
 		t.Errorf(`Status test 500 expected to contain "Test Panic!", but did not.`)
 	}
-	//fmt.Printf("%+v\n", p.response.Body.String())
 }
 
 func Test500(t *testing.T) {
@@ -65,7 +65,7 @@ func Custom404(c Ctx) {
 }
 
 func customStatus404(method, expects string, t *testing.T) {
-	a := testApp("customstatus404")
+	a := testApp(t, "customstatus404", nil, nil)
 
 	a.STATUS(404, Custom404)
 
@@ -83,7 +83,8 @@ func Custom418(c Ctx) {
 }
 
 func customStatus(method, expects string, status int, m Manage, t *testing.T) {
-	a := testApp("customstatus", callStatusRoute(method, routestring(status), status))
+	rts := testRoutes(callStatusRoute(method, routestring(status), status))
+	a := testApp(t, "customstatus", nil, rts)
 
 	a.STATUS(status, m)
 

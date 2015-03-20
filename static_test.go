@@ -10,7 +10,14 @@ func teststaticdirectory() string {
 }
 
 func TestStatic(t *testing.T) {
-	a := New("testStatic", WithAssets(TestAsset))
+	a := testApp(
+		t,
+		"testStatic",
+		testConf(
+			WithAssets(TestAsset),
+		),
+		nil,
+	)
 	a.STATIC("/resources/static/css/*filepath")
 	a.StaticDirs(teststaticdirectory())
 	a.Configure()
@@ -38,7 +45,14 @@ func (ts *teststaticor) Manage(c Ctx) {
 
 func TestStaticor(t *testing.T) {
 	ss := &teststaticor{}
-	a := New("external staticor", UseStaticor(ss))
+	a := testApp(
+		t,
+		"testExternalStaticor",
+		testConf(
+			UseStaticor(ss),
+		),
+		nil,
+	)
 	a.STATIC("/staticor/")
 	a.Configure()
 	p := NewPerformer(t, a, 200, "GET", "/staticor/")

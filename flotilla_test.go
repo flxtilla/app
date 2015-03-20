@@ -9,20 +9,35 @@ import (
 
 var METHODS []string = []string{"GET", "POST", "PATCH", "DELETE", "PUT", "OPTIONS", "HEAD"}
 
-func testApp(name string, routes ...*Route) *App {
-	f := New(name, Mode("testing", true))
-	for _, r := range routes {
-		f.Manage(r)
+func testConf(cf ...Configuration) []Configuration {
+	var ret []Configuration
+	for _, c := range cf {
+		ret = append(ret, c)
 	}
-	f.Configure()
-	return f
+	ret = append(ret, Mode("testing", true))
+	return ret
 }
 
-func TestSimple(t *testing.T) {
-	a := testApp("simple")
-	if a.Name() != "simple" {
-		t.Errorf(`App name was %s, expected "simple"`, a.Name())
+func testRoutes(rs ...*Route) []*Route {
+	var ret []*Route
+	for _, r := range rs {
+		ret = append(ret, r)
 	}
+	return ret
+}
+
+func testApp(t *testing.T, name string, conf []Configuration, routes []*Route) *App {
+	a := New(name, conf...)
+	a.Messaging.Queues["out"] = testout(t, a)
+	a.Messaging.Queues["panic"] = testpanicq(t, a)
+	for _, r := range routes {
+		a.Manage(r)
+	}
+	err := a.Configure()
+	if err != nil {
+		t.Errorf("Error in app configuration: %s", err.Error())
+	}
+	return a
 }
 
 type Performer struct {
@@ -56,6 +71,13 @@ func performFor(p *Performer) *Performer {
 	return p
 }
 
+func TestSimple(t *testing.T) {
+	a := testApp(t, "simple", nil, nil)
+	if a.Name() != "simple" {
+		t.Errorf(`App name was %s, expected "simple"`, a.Name())
+	}
+}
+
 func testRouteOK(method string, t *testing.T) {
 	var passed bool = false
 
@@ -63,7 +85,7 @@ func testRouteOK(method string, t *testing.T) {
 		passed = true
 	}})
 
-	f := testApp("flotilla_testRouteOK", r)
+	f := testApp(t, "flotilla_testRouteOK", nil, testRoutes(r))
 
 	p := NewPerformer(t, f, 200, method, "/test")
 
@@ -102,7 +124,7 @@ func TestMultipleRoutesSameMethodOK(t *testing.T) {
 	for _, x := range rtx {
 		rts = append(rts, x.rt)
 	}
-	a := testApp("testRoutesOK", rts...)
+	a := testApp(t, "testRoutesOK", nil, testRoutes(rts...))
 	for _, m := range METHODS {
 		p := NewPerformer(t, a, 200, m, "/test")
 		performFor(p)
@@ -131,7 +153,7 @@ func testRouteNotOK(method string, t *testing.T) {
 		passed = true
 	}})
 
-	f := testApp("flotilla_testRouteNotOk", r)
+	f := testApp(t, "flotilla_testRouteNotOk", nil, testRoutes(r))
 
 	p := NewPerformer(t, f, 404, method, "/test_notfound")
 

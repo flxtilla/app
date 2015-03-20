@@ -12,7 +12,7 @@ import (
 func TestExtension(t *testing.T) {}
 
 func TestCookieExtension(t *testing.T) {
-	a := New("testCookieExtension")
+	a := testApp(t, "testCookieExtension", nil, nil)
 
 	cookiem := func(c Ctx) {
 		var err error
@@ -56,7 +56,7 @@ func TestCookieExtension(t *testing.T) {
 }
 
 func TestResponseExtension(t *testing.T) {
-	a := New("testResponseExtension")
+	a := testApp(t, "testResponseExtension", nil, nil)
 	rm1 := func(c Ctx) { c.Call("abort", 406) }
 	rm2 := func(c Ctx) {
 		c.Call("headerwrite", 406)
@@ -110,7 +110,7 @@ func TestResponseExtension(t *testing.T) {
 }
 
 func TestSessionExtension(t *testing.T) {
-	a := New("testSessionExtension")
+	a := testApp(t, "testSessionExtension", nil, nil)
 	sm := func(c Ctx) {
 		s := Session(c)
 		if _, ok := s.(session.SessionStore); !ok {
@@ -158,7 +158,14 @@ var exts map[string]interface{} = map[string]interface{}{
 var ExtensionForTest Fxtension = MakeFxtension("testextension", exts)
 
 func TestAddedExtension(t *testing.T) {
-	a := New("testAddedExtension", Extensions(ExtensionForTest))
+	a := testApp(
+		t,
+		"testAddedExtension",
+		testConf(
+			Extensions(ExtensionForTest),
+		),
+		nil,
+	)
 
 	var ret1, ret2 string
 

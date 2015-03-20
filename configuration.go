@@ -160,3 +160,10 @@ func WithAssets(ast ...*AssetFS) Configuration {
 		return nil
 	}
 }
+
+func WithQueue(name string, q Queue) Configuration {
+	return func(a *App) error {
+		a.Messaging.Queues[name] = q
+		return nil
+	}
+}

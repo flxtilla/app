@@ -49,9 +49,15 @@ func (a *App) Blueprints() []*Blueprint {
 // Given any number of Blueprints, RegisterBlueprints registers each with the App.
 func (a *App) RegisterBlueprints(blueprints ...*Blueprint) {
 	for _, blueprint := range blueprints {
-		blueprint.Register(a)
-		if _, exists := a.ExistingBlueprint(blueprint.Prefix); !exists {
+		existing, exists := a.ExistingBlueprint(blueprint.Prefix)
+		if !exists {
+			blueprint.Register(a)
 			a.children = append(a.children, blueprint)
+		}
+		if exists {
+			for _, rt := range blueprint.held {
+				existing.Manage(rt)
+			}
 		}
 	}
 }
@@ -76,7 +82,8 @@ func (a *App) Mount(point string, blueprints ...*Blueprint) error {
 
 		newprefix := filepath.ToSlash(filepath.Join(point, blueprint.Prefix))
 
-		nbp := a.NewBlueprint(newprefix)
+		nbp := NewBlueprint(newprefix)
+		nbp.Managers = a.combineManagers(blueprint.Managers)
 
 		for _, rt := range blueprint.setupstate.held {
 			nbp.Manage(rt)

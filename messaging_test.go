@@ -5,6 +5,17 @@ import (
 	"testing"
 )
 
+func testout(t *testing.T, a *App) Queue {
+	return func(message string) {}
+}
+
+func testpanicq(t *testing.T, a *App) Queue {
+	return func(message string) {
+		a.Signals <- FlotillaPanic
+		a.Signals <- []byte(message)
+	}
+}
+
 func testsignalq(t *testing.T, a *App, against func(*testing.T, Signal)) {
 	go func() {
 		for msg := range a.Signals {
@@ -14,7 +25,7 @@ func testsignalq(t *testing.T, a *App, against func(*testing.T, Signal)) {
 }
 
 func testSignal(method string, t *testing.T) {
-	a := New("testSignal")
+	a := testApp(t, "testSignal", testConf(WithQueue("none", func(string) {})), nil)
 	testsignalq(t, a, func(t *testing.T, msg Signal) {
 		m := fmt.Sprintf("%s", msg)
 		if m != "TEST" {

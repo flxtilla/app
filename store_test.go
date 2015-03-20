@@ -22,7 +22,7 @@ func TestStore(t *testing.T) {
 	storeroute := func(c Ctx) {
 		_, exists := CheckStore(c, "UNREAD_VALUE")
 		if exists {
-			t.Errorf(`Store item value exists, but shuold not.`)
+			t.Errorf(`Store item value exists, but should not.`)
 		}
 
 		confstr, _ := CheckStore(c, "CONFSTRING")
@@ -79,7 +79,14 @@ func TestStore(t *testing.T) {
 		}
 	}
 
-	a := New("store", Mode("testing", true), WithAssets(TestAsset))
+	a := testApp(
+		t,
+		"testStore",
+		testConf(
+			WithAssets(TestAsset),
+		),
+		nil,
+	)
 
 	a.Manage(NewRoute("GET", "/store", false, []Manage{storeroute}))
 

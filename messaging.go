@@ -35,14 +35,22 @@ func newMessaging() *Messaging {
 	return m
 }
 
-// Out sends the provided string to messaging logger.
 func (m *Messaging) Out(message string) {
+	m.Send("out", message)
+}
+
+// Out sends the provided string to messaging logger.
+func (m *Messaging) DefaultOut(message string) {
 	m.Logger.Printf(" %s", message)
 }
 
 // Panic immediately logs the provided string, and sends a FlotillaPanic signal
 // and the message to messaging Signals.
 func (m *Messaging) Panic(message string) {
+	m.Send("panic", message)
+}
+
+func (m *Messaging) DefaultPanic(message string) {
 	log.Println(fmt.Errorf("[Flotilla Panic] %s", message))
 	m.Signals <- FlotillaPanic
 	m.Signals <- []byte(message)
@@ -65,8 +73,8 @@ func (m *Messaging) Send(queue string, message string) {
 
 func (m Messaging) defaultqueues() map[string]Queue {
 	q := make(map[string]Queue)
-	q["out"] = m.Out
-	q["panic"] = m.Panic
+	q["out"] = m.DefaultOut
+	q["panic"] = m.DefaultPanic
 	q["emit"] = m.Emit
 	return q
 }
