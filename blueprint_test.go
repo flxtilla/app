@@ -120,12 +120,58 @@ func registerBlueprints(method string, t *testing.T) {
 	if passed0 != true && passed1 != true && passed2 != true {
 		t.Errorf("Blueprint routes were not merged properly.")
 	}
-	//check routes in app against added routes
+	var paths []string
+	for _, rt := range a.Routes() {
+		paths = append(paths, rt.path)
+	}
+	for _, expected := range []string{"/zero/:param", "/blueprint/route/one", "/blueprint/route/two"} {
+		if !existsIn(expected, paths) {
+			t.Errorf("Expected route with path %s was not found in added routes.", expected)
+		}
+	}
 }
 
 func TestBlueprintRegister(t *testing.T) {
 	for _, m := range METHODS {
 		registerBlueprints(m, t)
+	}
+}
+
+func chainBlueprints(method string, t *testing.T) {
+	var x1, x2, x3 bool
+	var y int
+	a := testApp(t, "testChainedBlueprints", nil, nil)
+	a.Use(func(c Ctx) {
+		x1 = true
+		y = 1
+	})
+	b := a.NewBlueprint("/blueprintone")
+	b.Use(func(c Ctx) {
+		if x1 {
+			x2 = true
+			y = 2
+		}
+	})
+	c := b.NewBlueprint("/blueprinttwo")
+	third := NewRoute(method, "/third", false, []Manage{func(c Ctx) {}})
+	c.Manage(third)
+	c.Use(func(c Ctx) {
+		if x1 && x2 {
+			x3 = true
+			y = 3
+		}
+	})
+	a.Configure()
+	p := NewPerformer(t, a, 200, method, "/blueprintone/blueprinttwo/third")
+	performFor(p)
+	if !x1 && !x2 && !x3 && !(y == 3) {
+		t.Errorf("Blueprint Manage chain error, chained test blueprint did not execute expected Manage.")
+	}
+}
+
+func TestChainBlueprints(t *testing.T) {
+	for _, m := range METHODS {
+		chainBlueprints(m, t)
 	}
 }
 

@@ -3,6 +3,7 @@ package flotilla
 import (
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -18,6 +19,7 @@ func TestCookieExtension(t *testing.T) {
 		var err error
 
 		_, err = c.Call("cookie", false, "set-cookie", "cookie value", []interface{}{1000000, "/path", "domain.com", true, true})
+		_, err = c.Call("cookie", false, "set-cookie", "cookie value", []interface{}{-1, "/path", "domain.com", true, true})
 		if err != nil {
 			t.Errorf("Cookie was not properly set: %s", err.Error())
 		}
@@ -135,11 +137,83 @@ func TestSessionExtension(t *testing.T) {
 }
 
 func TestFlashExtension(t *testing.T) {
-	// a := New("testFlashExtension")
+	a := testApp(t, "testFlash", nil, nil)
+	fm := func(c Ctx) {
+		c.Call("flash", "flashed", "flashed test message")
+		fd, _ := c.Call("flashed")
+		if fd, ok := fd.(map[string][]string); ok {
+			rfd := fd["flashed"]
+			if rfd[0] != "flashed test message" {
+				t.Errorf(`extension: flashed returned %s, not "flashed test message"`, rfd)
+			}
+		} else {
+			t.Errorf("%+v was not type map[string][]string", fd)
+		}
+		c.Call("flash", "cat1", "category one")
+		c.Call("flash", "cat2", "category two")
+		fs, _ := c.Call("flashes", []string{"cat1", "cat2", "cat3"})
+		if fs, ok := fs.(map[string][]string); ok {
+			one := fs["cat1"][0]
+			two := fs["cat2"][0]
+			_, three := fs["cat3"]
+			if one != "category one" || two != "category two" || three {
+				t.Errorf("extension: flashes expected map[cat1:[category one] cat2:[category two]], received %+v", fs)
+			}
+		} else {
+			t.Errorf("%+v was not type map[string][]string", fd)
+		}
+		c.Call("flash", "test", "test flash")
+	}
+	a.GET("/ft1/", fm)
+	p := NewPerformer(t, a, 200, "GET", "/ft1/")
+	performFor(p)
 }
 
 func TestCtxExtension(t *testing.T) {
-	// a := New("testCtxExtension")
+	a := testApp(t, "testCtxExtensions", nil, nil)
+	type td struct {
+		a string
+		b int
+	}
+	cm1 := func(c Ctx) {
+		c.Call("set", "test", &td{a: "data", b: 1})
+		d, _ := c.Call("get", "test")
+		if d, ok := d.(*td); ok {
+			if d.a != "data" || d.b != 1 {
+				t.Errorf("extensions: getdata & setdata -- Test data was not properly set or gotten from ctx")
+			}
+		}
+		e, _ := c.Call("get", "none")
+		if e != nil {
+			t.Errorf("extensions: getdata & setdata -- expected nil, but received %+v", e)
+		}
+	}
+	a.GET("/ct1/", cm1)
+	p := NewPerformer(t, a, 200, "GET", "/ct1/")
+	performFor(p)
+
+	cm2 := func(c Ctx) {
+		stor, _ := c.Call("env", "store")
+		if _, ok := stor.(Store); !ok {
+			t.Errorf(`extensions: env("store") expected type Store, but was %+v`, stor)
+		}
+		exts, _ := c.Call("env", "fxtensions")
+		if _, ok := exts.(map[string]Fxtension); !ok {
+			t.Errorf(`extensions: env("fxtensions") expected type map[string]Fxtension, but was %+v`, exts)
+		}
+		prcs, _ := c.Call("env", "processors")
+		if _, ok := prcs.(map[string]reflect.Value); !ok {
+			t.Errorf(`extensions: env("processors") expected type map[string]reflect.Value, but was %+v`, prcs)
+		}
+		none, _ := c.Call("env", "none")
+		if none != nil {
+			t.Errorf(`extensions: env("none") expected a nil value, but was %+v`, none)
+		}
+	}
+	a.GET("/ct2/", cm2)
+	p = NewPerformer(t, a, 200, "GET", "/ct2/")
+	performFor(p)
+
 }
 
 func testextensionzero(c Ctx) string {

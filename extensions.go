@@ -226,13 +226,13 @@ func flash(c *ctx, category string, message string) error {
 	return nil
 }
 
-func flashes(c *ctx, categories []string) []string {
-	var ret []string
+func flashes(c *ctx, categories []string) map[string][]string {
+	var ret = make(map[string][]string)
 	if fl := c.Session.Get("_flashes"); fl != nil {
 		if fls, ok := fl.(map[string][]string); ok {
 			for k, v := range fls {
 				if existsIn(k, categories) {
-					ret = v
+					ret[k] = v
 					delete(fls, k)
 				}
 			}

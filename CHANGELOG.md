@@ -1,5 +1,14 @@
 ##Changelog
 
+### Flotilla 1.0.2 (18.3.2015)
+
+- cleanup & refactor testing
+- improve to Blueprint registry
+
+### Flotilla 1.0.1 (19.3.2015)
+
+- bugfix for inability to add multiple Manage for different request methods, but the same path
+
 ### Flotilla 1.0.0 (18.3.2015)
 
 - [ground-up reassembly & rewrite from former codebase](https://github.com/fc-thrisp-hurrata-dlm-graveyard/flotilla-defunct)
