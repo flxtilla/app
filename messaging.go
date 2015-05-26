@@ -35,6 +35,10 @@ func newMessaging() *Messaging {
 	return m
 }
 
+func flush(c Signals, m Signal) {
+	c <- m
+}
+
 func (m *Messaging) Out(message string) {
 	m.Send("out", message)
 }
@@ -52,8 +56,6 @@ func (m *Messaging) Panic(message string) {
 
 func (m *Messaging) DefaultPanic(message string) {
 	log.Println(fmt.Errorf("[Flotilla Panic] %s", message))
-	m.Signals <- FlotillaPanic
-	m.Signals <- []byte(message)
 }
 
 // Emit send the provided message as a Signal to messaging Signals channel.
@@ -64,17 +66,19 @@ func (m *Messaging) Emit(message string) {
 // Send sends the message to the provided queue, with a fall through to Emit if
 // the queue does not exist.
 func (m *Messaging) Send(queue string, message string) {
-	if q, ok := m.Queues[queue]; ok {
-		q(message)
-		return
+	q, ok := m.Queues[queue]
+	if ok {
+		go q(message)
 	}
-	m.Emit(message)
+	if !ok {
+		go m.Emit(message)
+	}
 }
 
 func (m Messaging) defaultqueues() map[string]Queue {
-	q := make(map[string]Queue)
-	q["out"] = m.DefaultOut
-	q["panic"] = m.DefaultPanic
-	q["emit"] = m.Emit
-	return q
+	return map[string]Queue{
+		"out":   m.DefaultOut,
+		"panic": m.DefaultPanic,
+		"emit":  m.Emit,
+	}
 }

@@ -3,6 +3,7 @@ package session
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"fmt"
 
 	"encoding/json"
 	"net/http"
@@ -85,6 +86,7 @@ func (st *CookieSessionStore) SessionRelease(w http.ResponseWriter) {
 		cookiepder.config.SecurityName,
 		st.values)
 	if err != nil {
+		fmt.Printf(fmt.Sprintf("!%+v\n", err))
 		return
 	}
 	cookie := &http.Cookie{Name: cookiepder.config.CookieName,

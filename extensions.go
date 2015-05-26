@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"reflect"
 
+	"github.com/thrisp/flotilla/engine"
 	"github.com/thrisp/flotilla/session"
 	"github.com/thrisp/flotilla/xrr"
 )
@@ -253,8 +254,7 @@ func flashed(c *ctx) map[string][]string {
 	return ret
 }
 
-// MakeCtxFxtension creates an Fxtension with miscellaneous functions for the
-// provided App.
+// MakeCtxFxtension creates a utility Fxtension with miscellaneous functions.
 func MakeCtxFxtension(a *App) Fxtension {
 	ctxfxtension := map[string]interface{}{
 		"env":            envqueryfunc(a),
@@ -262,8 +262,11 @@ func MakeCtxFxtension(a *App) Fxtension {
 		"get":            getdata,
 		"mode":           currentmodefunc(a),
 		"out":            out(a),
+		"emit":           emit(a),
 		"panics":         panics,
 		"panicsignal":    panicsignalfunc(a),
+		"params":         currentparams,
+		"paramString":    paramString,
 		"push":           push,
 		"rendertemplate": rendertemplatefunc(a),
 		"request":        currentrequest,
@@ -314,6 +317,10 @@ func currentmodefunc(a *App) func(c *ctx) *Modes {
 	}
 }
 
+func currentparams(c *ctx) engine.Params {
+	return c.Params
+}
+
 func panics(c *ctx) xrr.ErrorMsgs {
 	return c.Result.Errors().ByType(xrr.ErrorTypePanic)
 }
@@ -325,9 +332,25 @@ func panicsignalfunc(a *App) func(*ctx, string) error {
 	}
 }
 
+func paramString(c *ctx, key string) string {
+	for _, v := range c.Params {
+		if v.Key == key {
+			return v.Value
+		}
+	}
+	return ""
+}
+
 func out(a *App) func(*ctx, string) error {
 	return func(c *ctx, msg string) error {
 		a.Messaging.Out(msg)
+		return nil
+	}
+}
+
+func emit(a *App) func(*ctx, string) error {
+	return func(c *ctx, msg string) error {
+		a.Messaging.Emit(msg)
 		return nil
 	}
 }

@@ -117,12 +117,14 @@ func (e *engine) status(code int) *Result {
 	return NewResult(code, e.defaultStatus(code), nil, false)
 }
 
+func defaultStatusRule(rw http.ResponseWriter, rq *http.Request, rs *Result) {
+	rw.WriteHeader(rs.Code)
+	rw.Write([]byte(fmt.Sprintf("%d %s", rs.Code, http.StatusText(rs.Code))))
+}
+
 func (e *engine) defaultStatus(code int) Rule {
 	if e.StatusRule == nil {
-		return func(rw http.ResponseWriter, rq *http.Request, rs *Result) {
-			rw.WriteHeader(rs.Code)
-			rw.Write([]byte(fmt.Sprintf("%d %s", rs.Code, http.StatusText(rs.Code))))
-		}
+		return defaultStatusRule
 	}
 	return e.StatusRule
 }

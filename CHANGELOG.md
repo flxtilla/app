@@ -1,9 +1,9 @@
 ##Changelog
 
-### Flotilla 1.0.2 (18.3.2015)
+### Flotilla 1.0.2 (tbd)
 
 - cleanup & refactor testing
-- improve to Blueprint registry
+- improvements to Blueprint registry
 
 ### Flotilla 1.0.1 (19.3.2015)
 

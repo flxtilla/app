@@ -28,7 +28,7 @@ type Ctx interface {
 	Next()
 
 	// Cancel is called to finalize the Ctx in any way needed, e.g.
-	// post-processing or logging &signalling
+	// post-processing, signalling, or logging.
 	Cancel()
 }
 
@@ -137,7 +137,10 @@ type ctx struct {
 }
 
 func emptyCtx() *ctx {
-	return &ctx{handlers: defaulthandlers(), Erroror: xrr.DefaultErroror()}
+	return &ctx{
+		handlers: defaulthandlers(),
+		Erroror:  xrr.DefaultErroror(),
+	}
 }
 
 // NewCtx returns a default ctx, given a map of Fxtensions and an Engine Result.
