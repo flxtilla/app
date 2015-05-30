@@ -4,6 +4,7 @@
 
 - cleanup & refactor testing
 - improvements to Blueprint registry
+- improvements to Route creation & management
 
 ### Flotilla 1.0.1 (19.3.2015)
 

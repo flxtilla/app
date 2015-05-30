@@ -95,6 +95,10 @@ func (rt *Route) Name() string {
 	return rt.name
 }
 
+func (rt *Route) Rename(name string) {
+	rt.name = name
+}
+
 func Named(rt *Route) string {
 	n := strings.Split(rt.Path, "/")
 	n = append(n, strings.ToLower(rt.Method))
