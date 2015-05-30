@@ -96,10 +96,10 @@ func TestDefaultTemplating(t *testing.T) {
 		),
 		testRoutes(
 			NewRoute(
-				"GET", "/template", false, []Manage{tt},
+				defaultRouteConf("GET", "/template", []Manage{tt}),
 			),
 			NewRoute(
-				"GET", "/asset_template", false, []Manage{at},
+				defaultRouteConf("GET", "/asset_template", []Manage{at}),
 			),
 		),
 	)
@@ -182,10 +182,11 @@ func TestTemplator(t *testing.T) {
 		),
 		testRoutes(
 			NewRoute(
-				"GET",
-				"/templator/",
-				false,
-				[]Manage{tt},
+				defaultRouteConf(
+					"GET",
+					"/templator/",
+					[]Manage{tt},
+				),
 			),
 		),
 	)

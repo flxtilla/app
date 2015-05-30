@@ -185,9 +185,9 @@ func (b *Blueprint) UseAt(index int, managers ...Manage) {
 	b.Managers = append(before, after...)
 }
 
-func (b *Blueprint) routeExists(route *Route) bool {
+func (b *Blueprint) routeExists(rt *Route) bool {
 	for _, r := range b.Routes {
-		if (route.path == r.path) && (route.method == r.method) {
+		if (rt.Path == r.Path) && (rt.Method == r.Method) {
 			return true
 		}
 	}
@@ -195,23 +195,19 @@ func (b *Blueprint) routeExists(route *Route) bool {
 }
 
 func (b *Blueprint) add(r *Route) {
-	if r.Name != "" {
-		b.Routes[r.Name] = r
-	} else {
-		b.Routes[r.Named()] = r
-	}
+	b.Routes[r.Name()] = r
 }
 
 func (b *Blueprint) hold(r *Route) {
 	b.held = append(b.held, r)
 }
 
-func (b *Blueprint) push(register func(), route *Route) {
+func (b *Blueprint) push(register func(), rt *Route) {
 	if b.registered {
 		register()
 	} else {
-		if route != nil {
-			b.hold(route)
+		if rt != nil {
+			b.hold(rt)
 		}
 		b.deferred = append(b.deferred, register)
 	}
@@ -224,65 +220,73 @@ func (b *Blueprint) mkctxfunc() MakeCtxFunc {
 	return b.MakeCtx
 }
 
-func (b *Blueprint) register(route *Route) {
-	route.blueprint = b
-	route.managers = b.combineManagers(route.managers)
-	route.path = b.pathFor(route.base)
-	route.registered = true
-	route.MakeCtx = b.mkctxfunc()
+func registerRouteConf(b *Blueprint) RouteConf {
+	return func(rt *Route) error {
+		rt.Blueprint = b
+		rt.Managers = b.combineManagers(rt.Managers)
+		rt.Path = b.pathFor(rt.Base)
+		rt.Registered = true
+		rt.MakeCtx = b.mkctxfunc()
+		return nil
+	}
 }
 
 // Manage adds a route to the Blueprint.
-func (b *Blueprint) Manage(route *Route) {
+func (b *Blueprint) Manage(rt *Route) {
 	register := func() {
-		b.register(route)
-		if !b.routeExists(route) {
-			b.add(route)
-			b.app.Handle(route.method, route.path, route.rule)
+		rt.Configure(registerRouteConf(b))
+		if !b.routeExists(rt) {
+			b.add(rt)
+			b.app.Handle(rt.Method, rt.Path, rt.rule)
 		}
 	}
-	b.push(register, route)
+	b.push(register, rt)
 }
 
 func (b *Blueprint) GET(path string, managers ...Manage) {
-	b.Manage(NewRoute("GET", path, false, managers))
+	b.Manage(NewRoute(defaultRouteConf("GET", path, managers)))
 }
 
 func (b *Blueprint) POST(path string, managers ...Manage) {
-	b.Manage(NewRoute("POST", path, false, managers))
+	b.Manage(NewRoute(defaultRouteConf("POST", path, managers)))
 }
 
 func (b *Blueprint) DELETE(path string, managers ...Manage) {
-	b.Manage(NewRoute("DELETE", path, false, managers))
+	b.Manage(NewRoute(defaultRouteConf("DELETE", path, managers)))
 }
 
 func (b *Blueprint) PATCH(path string, managers ...Manage) {
-	b.Manage(NewRoute("PATCH", path, false, managers))
+	b.Manage(NewRoute(defaultRouteConf("PATCH", path, managers)))
 }
 
 func (b *Blueprint) PUT(path string, managers ...Manage) {
-	b.Manage(NewRoute("PUT", path, false, managers))
+	b.Manage(NewRoute(defaultRouteConf("PUT", path, managers)))
 }
 
 func (b *Blueprint) OPTIONS(path string, managers ...Manage) {
-	b.Manage(NewRoute("OPTIONS", path, false, managers))
+	b.Manage(NewRoute(defaultRouteConf("OPTIONS", path, managers)))
 }
 
 func (b *Blueprint) HEAD(path string, managers ...Manage) {
-	b.Manage(NewRoute("HEAD", path, false, managers))
+	b.Manage(NewRoute(defaultRouteConf("HEAD", path, managers)))
 }
 
 func (b *Blueprint) STATIC(path string) {
 	b.push(func() { b.app.StaticDirs(dropTrailing(path, "*filepath")) }, nil)
 	register := func() {
-		route := NewRoute("GET", path, true, []Manage{b.app.Staticor.Manage})
-		b.register(route)
-		b.add(route)
-		b.app.Handle(route.method, route.path, route.rule)
+		rt := NewRoute(staticRouteConf("GET", path, []Manage{b.app.Staticor.Manage}))
+		rt.Configure(registerRouteConf(b))
+		b.add(rt)
+		b.app.Handle(rt.Method, rt.Path, rt.rule)
 	}
 	b.push(register, nil)
 }
 
 func (b *Blueprint) STATUS(code int, managers ...Manage) {
-	b.push(func() { b.app.Handle("STATUS", strconv.Itoa(code), CustomStatusRule(b.app, code, managers...)) }, nil)
+	b.push(func() {
+		b.app.Handle("STATUS",
+			strconv.Itoa(code),
+			CustomStatusRule(b.app, code, managers...))
+	},
+		nil)
 }

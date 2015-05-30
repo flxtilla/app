@@ -11,42 +11,31 @@ import (
 	"github.com/thrisp/flotilla/engine"
 )
 
-var (
-	regParam = regexp.MustCompile(`:[^/#?()\.\\]+|\(\?P<[a-zA-Z0-9]+>.*\)`)
-	regSplat = regexp.MustCompile(`\*[^/#?()\.\\]+|\(\?P<[a-zA-Z0-9]+>.*\)`)
-)
-
-type (
-	MakeCtxFunc func(w http.ResponseWriter, rq *http.Request, rs *engine.Result, rt *Route) Ctx
-
-	Route struct {
-		registered bool
-		blueprint  *Blueprint
-		static     bool
-		method     string
-		base       string
-		path       string
-		managers   []Manage
-		Name       string
-		MakeCtx    MakeCtxFunc
-	}
-
-	Routes map[string]*Route
-)
+type Routes map[string]*Route
 
 // Routes returns a map of all routes attached to the app.
 func (a *App) Routes() Routes {
 	allroutes := make(Routes)
 	for _, blueprint := range a.Blueprints() {
 		for _, route := range blueprint.Routes {
-			if route.Name != "" {
-				allroutes[route.Name] = route
-			} else {
-				allroutes[route.Named()] = route
-			}
+			allroutes[route.Name()] = route
 		}
 	}
 	return allroutes
+}
+
+type MakeCtxFunc func(w http.ResponseWriter, rq *http.Request, rs *engine.Result, rt *Route) Ctx
+
+type Route struct {
+	name       string
+	Registered bool
+	Blueprint  *Blueprint
+	Static     bool
+	Method     string
+	Base       string
+	Path       string
+	Managers   []Manage
+	MakeCtx    MakeCtxFunc
 }
 
 func (rt *Route) rule(rw http.ResponseWriter, rq *http.Request, rs *engine.Result) {
@@ -55,41 +44,79 @@ func (rt *Route) rule(rw http.ResponseWriter, rq *http.Request, rs *engine.Resul
 	c.Cancel()
 }
 
-// NewRoute returns a new route instance with the given method, path, bool, and Manage functions.
-func NewRoute(method string, path string, static bool, managers []Manage) *Route {
-	rt := &Route{method: method, static: static, managers: managers}
-	if static {
-		if fp := strings.Split(path, "/"); fp[len(fp)-1] != "*filepath" {
-			rt.base = filepath.ToSlash(filepath.Join(path, "/*filepath"))
-		} else {
-			rt.base = path
-		}
-	} else {
-		rt.base = path
+// NewRoute returns a new, non-static, route instance with the given method, path,and Manage functions.
+//func NewRoute(method string, path string, managers []Manage) *Route {
+func NewRoute(conf ...RouteConf) *Route {
+	rt := &Route{}
+	err := rt.Configure(conf...)
+	if err != nil {
+		panic(fmt.Sprintf("[FLOTILLA] route configuration error: %s", err.Error()))
 	}
 	return rt
 }
 
-// Named returns the route name.
-func (rt *Route) Named() string {
-	name := strings.Split(rt.path, "/")
-	name = append(name, strings.ToLower(rt.method))
-	for index, value := range name {
+type RouteConf func(*Route) error
+
+func defaultRouteConf(method string, path string, managers []Manage) RouteConf {
+	return func(rt *Route) error {
+		rt.Method = method
+		rt.Base = path
+		rt.Managers = managers
+		return nil
+	}
+}
+
+func staticRouteConf(method string, path string, managers []Manage) RouteConf {
+	return func(rt *Route) error {
+		rt.Method = method
+		rt.Static = true
+		if fp := strings.Split(path, "/"); fp[len(fp)-1] != "*filepath" {
+			rt.Base = filepath.ToSlash(filepath.Join(path, "/*filepath"))
+		} else {
+			rt.Base = path
+		}
+		rt.Managers = managers
+		return nil
+	}
+}
+func (rt *Route) Configure(conf ...RouteConf) error {
+	var err error
+	for _, c := range conf {
+		err = c(rt)
+	}
+	return err
+}
+
+// Name returns the route name.
+func (rt *Route) Name() string {
+	if rt.name == "" {
+		return Named(rt)
+	}
+	return rt.name
+}
+
+func Named(rt *Route) string {
+	n := strings.Split(rt.Path, "/")
+	n = append(n, strings.ToLower(rt.Method))
+	for index, value := range n {
 		if regSplat.MatchString(value) {
-			name[index] = "s"
+			n[index] = "{s}"
 		}
 		if regParam.MatchString(value) {
-			name[index] = "p"
+			n[index] = "{p}"
 		}
 	}
-	return strings.Join(name, `\`)
+	return strings.Join(n, `\`)
 }
+
+var regParam = regexp.MustCompile(`:[^/#?()\.\\]+|\(\?P<[a-zA-Z0-9]+>.*\)`)
+var regSplat = regexp.MustCompile(`\*[^/#?()\.\\]+|\(\?P<[a-zA-Z0-9]+>.*\)`)
 
 // Url returns a url for the route, provided the string parameters.
 func (rt *Route) Url(params ...string) (*url.URL, error) {
 	paramCount := len(params)
 	i := 0
-	rurl := regParam.ReplaceAllStringFunc(rt.path, func(m string) string {
+	rurl := regParam.ReplaceAllStringFunc(rt.Path, func(m string) string {
 		var val string
 		if i < paramCount {
 			val = params[i]
@@ -106,7 +133,7 @@ func (rt *Route) Url(params ...string) (*url.URL, error) {
 	if err != nil {
 		return nil, err
 	}
-	if i < len(params) && rt.method == "GET" {
+	if i < len(params) && rt.Method == "GET" {
 		providedquerystring := params[i:(len(params))]
 		var querystring []string
 		qsi := 0

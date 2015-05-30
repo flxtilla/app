@@ -88,7 +88,7 @@ func TestStore(t *testing.T) {
 		nil,
 	)
 
-	a.Manage(NewRoute("GET", "/store", false, []Manage{storeroute}))
+	a.Manage(NewRoute(defaultRouteConf("GET", "/store", []Manage{storeroute})))
 
 	a.LoadConfFile(testconffile())
 

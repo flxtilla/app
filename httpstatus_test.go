@@ -14,7 +14,7 @@ func callStatus(status int) Manage {
 }
 
 func callStatusRoute(method, route string, status int) *Route {
-	return NewRoute(method, route, false, []Manage{callStatus(status)})
+	return NewRoute(defaultRouteConf(method, route, []Manage{callStatus(status)}))
 }
 
 func routestring(status int) string {
@@ -45,7 +45,7 @@ func testpanic(c Ctx) {
 }
 
 func test500(method string, t *testing.T) {
-	pnc := NewRoute(method, routestring(500), false, []Manage{testpanic})
+	pnc := NewRoute(defaultRouteConf(method, routestring(500), []Manage{testpanic}))
 	a := testApp(t, "panic", nil, testRoutes(pnc))
 	p := NewPerformer(t, a, 500, method, routestring(500))
 	performFor(p)

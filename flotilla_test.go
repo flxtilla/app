@@ -81,9 +81,9 @@ func TestSimple(t *testing.T) {
 func testRouteOK(method string, t *testing.T) {
 	var passed bool = false
 
-	r := NewRoute(method, "/test", false, []Manage{func(c Ctx) {
+	r := NewRoute(defaultRouteConf(method, "/test", []Manage{func(c Ctx) {
 		passed = true
-	}})
+	}}))
 
 	f := testApp(t, "flotilla_testRouteOK", nil, testRoutes(r))
 
@@ -117,7 +117,7 @@ func TestMultipleRoutesSameMethodOK(t *testing.T) {
 			runonce: false,
 			passed:  false,
 		}
-		mkrx.rt = NewRoute(m, "/test", false, []Manage{func(c Ctx) { mkrx.passed, mkrx.runonce = true, true }})
+		mkrx.rt = NewRoute(defaultRouteConf(m, "/test", []Manage{func(c Ctx) { mkrx.passed, mkrx.runonce = true, true }}))
 		rtx = append(rtx, mkrx)
 	}
 	var rts []*Route
@@ -149,9 +149,9 @@ func testRouteNotOK(method string, t *testing.T) {
 
 	othermethod := methodNotMethod(method)
 
-	r := NewRoute(othermethod, "/test_notfound", false, []Manage{func(c Ctx) {
+	r := NewRoute(defaultRouteConf(othermethod, "/test_notfound", []Manage{func(c Ctx) {
 		passed = true
-	}})
+	}}))
 
 	f := testApp(t, "flotilla_testRouteNotOk", nil, testRoutes(r))
 

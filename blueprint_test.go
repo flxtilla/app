@@ -101,13 +101,13 @@ func registerBlueprints(method string, t *testing.T) {
 	m1 := func(c Ctx) { passed1 = true }
 	m2 := func(c Ctx) { passed2 = true }
 	b0 := NewBlueprint("/")
-	zero := NewRoute(method, "/zero/:param", false, []Manage{m0})
+	zero := NewRoute(defaultRouteConf(method, "/zero/:param", []Manage{m0}))
 	b0.Manage(zero)
 	b1 := NewBlueprint("/blueprint")
-	one := NewRoute(method, "/route/one", false, []Manage{m1})
+	one := NewRoute(defaultRouteConf(method, "/route/one", []Manage{m1}))
 	b1.Manage(one)
 	b2 := NewBlueprint("/blueprint")
-	two := NewRoute(method, "/route/two", false, []Manage{m2})
+	two := NewRoute(defaultRouteConf(method, "/route/two", []Manage{m2}))
 	b2.Manage(two)
 	a.RegisterBlueprints(b0, b1, b2)
 	a.Configure()
@@ -122,7 +122,7 @@ func registerBlueprints(method string, t *testing.T) {
 	}
 	var paths []string
 	for _, rt := range a.Routes() {
-		paths = append(paths, rt.path)
+		paths = append(paths, rt.Path)
 	}
 	for _, expected := range []string{"/zero/:param", "/blueprint/route/one", "/blueprint/route/two"} {
 		if !existsIn(expected, paths) {
@@ -153,7 +153,7 @@ func chainBlueprints(method string, t *testing.T) {
 		}
 	})
 	c := b.NewBlueprint("/blueprinttwo")
-	third := NewRoute(method, "/third", false, []Manage{func(c Ctx) {}})
+	third := NewRoute(defaultRouteConf(method, "/third", []Manage{func(c Ctx) {}}))
 	c.Manage(third)
 	c.Use(func(c Ctx) {
 		if x1 && x2 {
@@ -184,9 +184,9 @@ func mountBlueprint(method string, t *testing.T) {
 
 	m := func(c Ctx) { passed = true }
 
-	one := NewRoute(method, "/mounted/1", false, []Manage{m})
+	one := NewRoute(defaultRouteConf(method, "/mounted/1", []Manage{m}))
 
-	two := NewRoute(method, "/mounted/2", false, []Manage{m})
+	two := NewRoute(defaultRouteConf(method, "/mounted/2", []Manage{m}))
 
 	b.Manage(one)
 

@@ -38,13 +38,13 @@ func testSignal(method string, t *testing.T) {
 		}
 	}
 	a.Queues["testqueue"] = testqueue
-	a.Manage(NewRoute(method, "/test_signal_sent", false, []Manage{func(c Ctx) {
+	a.Manage(NewRoute(defaultRouteConf(method, "/test_signal_sent", []Manage{func(c Ctx) {
 		a.Emit("TEST")
 		for i := 0; i < 10; i++ {
 			a.Send("testqueue", "SENT")
 			a.Send("notaqueue", "TEST")
 		}
-	}}))
+	}})))
 	a.Configure()
 	p := NewPerformer(t, a, 200, method, "/test_signal_sent")
 	performFor(p)

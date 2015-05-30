@@ -13,30 +13,35 @@ func two(c Ctx) {}
 func three(c Ctx) {}
 
 func TestRoute(t *testing.T) {
-	r1 := NewRoute("GET", "/one/:route", false, []Manage{one, two})
+	r1 := NewRoute(defaultRouteConf("GET", "/one/:route", []Manage{one, two}))
 
-	r2 := NewRoute("GET", "/two/:route", false, []Manage{one, two})
-	r2.Name = "NamedRoute"
+	r2 := NewRoute(defaultRouteConf("GET", "/two/:route", []Manage{one, two}))
+	r2.Configure(
+		func(r *Route) error {
+			r.name = "NamedRoute"
+			return nil
+		},
+	)
 
-	r3 := NewRoute("GET", "/stc/*filepath", true, []Manage{three})
+	r3 := NewRoute(staticRouteConf("GET", "/stc/*filepath", []Manage{three}))
 
-	r4 := NewRoute("POST", "/random/route/with/:param", false, []Manage{one, two})
+	r4 := NewRoute(defaultRouteConf("POST", "/random/route/with/:param", []Manage{one, two}))
 
 	a := testApp(t, "testroute", nil, testRoutes(r1, r2))
 
 	a.Manage(r3)
 	a.Manage(r4)
 
-	name1, name2, name3, name4 := r1.Named(), r2.Name, r3.Named(), r4.Named()
+	name1, name2, name3, name4 := r1.Name(), r2.Name(), r3.Name(), r4.Name()
 
 	names := strings.Join([]string{name1, name2, name3, name4}, ",")
 
 	keys := []string{name1, name2, name3, name4}
 
-	expected := strings.Join([]string{"\\one\\p\\get", "NamedRoute", "\\stc\\s\\get", "\\random\\route\\with\\p\\post"}, ",")
+	expected := strings.Join([]string{`\one\{p}\get`, `NamedRoute`, `\stc\{s}\get`, `\random\route\with\{p}\post`}, ",")
 
 	if bytes.Compare([]byte(names), []byte(expected)) != 0 {
-		t.Errorf(`Route names were [%s], but should be ["\one\p\get", "NamedRoute", "\stc\s\get", "\random\route\with\p\post"]`, names)
+		t.Errorf(`Route names were [%s], but should be ["\one\{p}\get", "NamedRoute", "\stc\{s}\get", "\random\route\with\{p}\post"]`, names)
 	}
 
 	rts := a.Routes()

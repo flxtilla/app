@@ -38,7 +38,7 @@ var Canceled = errors.New("flotilla.Ctx canceled")
 func (a *App) Ctx() MakeCtxFunc {
 	return func(rw http.ResponseWriter, rq *http.Request, rs *engine.Result, rt *Route) Ctx {
 		c := NewCtx(a.fxtensions, rs)
-		c.reset(rq, rw, rt.managers)
+		c.reset(rq, rw, rt.Managers)
 		c.Call("start", a.SessionManager)
 		return c
 	}
