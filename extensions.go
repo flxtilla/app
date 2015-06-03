@@ -124,7 +124,8 @@ func iswritten(c *ctx) bool {
 
 func redirect(c *ctx, code int, location string) error {
 	if code >= 300 && code <= 308 {
-		c.push(func(pc Ctx) {
+		c.bounce(func(pc Ctx) {
+			releasesession(c)
 			http.Redirect(c.RW, c.Request, location, code)
 			c.RW.WriteHeaderNow()
 		})
@@ -186,6 +187,7 @@ func returnsession(c *ctx) session.SessionStore {
 func releasesession(c *ctx) error {
 	if c.Session != nil {
 		if !c.RW.Written() {
+			c.Flasher.Out(c.Session)
 			c.Session.SessionRelease(c.RW)
 		}
 	}
@@ -206,52 +208,80 @@ func startsession(c *ctx, s *session.Manager) error {
 }
 
 var flashfxtension = map[string]interface{}{
+	"flasher": flshr,
 	"flash":   flash,
-	"flashes": flashes,
-	"flashed": flashed,
 }
 
 var FlashFxtension Fxtension = MakeFxtension("flashfxtension", flashfxtension)
 
-func flash(c *ctx, category string, message string) error {
-	if fl := c.Session.Get("_flashes"); fl != nil {
-		if fls, ok := fl.(map[string][]string); ok {
-			fls[category] = append(fls[category], message)
-			c.Session.Set("_flashes", fls)
-		}
-	} else {
-		fl := make(map[string][]string)
-		fl[category] = append(fl[category], message)
-		c.Session.Set("_flashes", fl)
+type Flashes map[string][]string
+
+type Flasher interface {
+	Write(string) []string
+	WriteAll() Flashes
+	In(session.SessionStore) bool
+	Out(session.SessionStore) bool
+	Flash(string, string)
+}
+
+func NewFlasher() Flasher {
+	return &flasher{}
+}
+
+type flasher struct {
+	readOnce bool
+	flashes  Flashes
+}
+
+func (f *flasher) Write(key string) []string {
+	if ret, ok := f.flashes[key]; ok {
+		f.readOnce = true
+		return ret
 	}
 	return nil
 }
 
-func flashes(c *ctx, categories []string) map[string][]string {
-	var ret = make(map[string][]string)
-	if fl := c.Session.Get("_flashes"); fl != nil {
-		if fls, ok := fl.(map[string][]string); ok {
-			for k, v := range fls {
-				if existsIn(k, categories) {
-					ret[k] = v
-					delete(fls, k)
-				}
-			}
-			c.Session.Set("_flashes", fls)
-		}
+func (f *flasher) WriteAll() Flashes {
+	ret := make(Flashes)
+	for k, v := range f.flashes {
+		ret[k] = v
 	}
+	f.readOnce = true
+	f.flashes = nil
 	return ret
 }
 
-func flashed(c *ctx) map[string][]string {
-	var ret map[string][]string
-	if fl := c.Session.Get("_flashes"); fl != nil {
-		if fls, ok := fl.(map[string][]string); ok {
-			ret = fls
+func (f *flasher) In(s session.SessionStore) bool {
+	if in := s.Get("_flashes"); in != nil {
+		if inf, ok := in.(Flashes); ok {
+			f.flashes = inf
+			return true
 		}
 	}
-	c.Session.Delete("_flashes")
-	return ret
+	return false
+}
+
+func (f *flasher) Out(s session.SessionStore) bool {
+	if err := s.Set("_flashes", f.flashes); err != nil {
+		return true
+	}
+	return false
+}
+
+func (f *flasher) Flash(key, value string) {
+	if f.flashes == nil {
+		f.flashes = make(Flashes)
+	}
+	f.flashes[key] = append(f.flashes[key], value)
+}
+
+func flshr(c *ctx) (Flasher, error) {
+	return c.Flasher, nil
+}
+
+func flash(c *ctx, category, value string) error {
+	c.Flasher.Flash(category, value)
+	return nil
 }
 
 // MakeCtxFxtension creates a utility Fxtension with miscellaneous functions.

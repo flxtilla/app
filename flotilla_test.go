@@ -65,7 +65,7 @@ func performFor(p *Performer) *Performer {
 	p.h.ServeHTTP(p.response, p.request)
 
 	if p.response.Code != p.code {
-		p.t.Errorf("%s :: %s\nStatus code should be %d, was %d\n", p.request.Method, p.request.URL.Path, p.code, p.response.Code)
+		p.t.Errorf("\n%s :: %s :: Status code should be %d, was %d\n", p.request.Method, p.request.URL.Path, p.code, p.response.Code)
 	}
 
 	return p

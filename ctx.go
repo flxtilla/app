@@ -40,6 +40,7 @@ func (a *App) Ctx() MakeCtxFunc {
 		c := NewCtx(a.fxtensions, rs)
 		c.reset(rq, rw, rt.Managers)
 		c.Call("start", a.SessionManager)
+		c.In(c.Session)
 		return c
 	}
 }
@@ -134,6 +135,7 @@ type ctx struct {
 	Request *http.Request
 	Session session.SessionStore
 	Data    map[string]interface{}
+	Flasher
 }
 
 func emptyCtx() *ctx {
@@ -149,6 +151,7 @@ func NewCtx(fxt map[string]Fxtension, rs *engine.Result) *ctx {
 	c.Result = rs
 	c.Extensor = newextensor(fxt, c)
 	c.RW = &c.rw
+	c.Flasher = NewFlasher()
 	return c
 }
 
@@ -203,4 +206,8 @@ func (c *ctx) rerun(managers ...Manage) {
 
 func (c *ctx) push(fn Manage) {
 	c.deferred = append(c.deferred, fn)
+}
+
+func (c *ctx) bounce(fn Manage) {
+	c.deferred = []Manage{fn}
 }
