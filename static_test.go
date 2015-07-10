@@ -10,16 +10,16 @@ func teststaticdirectory() string {
 }
 
 func TestStatic(t *testing.T) {
-	a := New("testStatic", WithAssets(TestAsset))
+	a := testApp(
+		t,
+		"testStatic",
+		WithAssets(TestAsset),
+	)
 	a.STATIC("/resources/static/css/*filepath")
 	a.StaticDirs(teststaticdirectory())
-	a.Configure()
-	p := NewPerformer(t, a, 200, "GET", "/static/css/static.css")
-	performFor(p)
-	p = NewPerformer(t, a, 200, "GET", "/static/css/css/css_asset.css")
-	performFor(p)
-	p = NewPerformer(t, a, 404, "GET", "/static/css/no.css")
-	performFor(p)
+	ZeroExpectationPerformer(t, a, 200, "GET", "/static/css/static.css").Perform()
+	ZeroExpectationPerformer(t, a, 200, "GET", "/static/css/css/css/css_asset.css").Perform()
+	ZeroExpectationPerformer(t, a, 404, "GET", "/static/css/no.css").Perform()
 }
 
 type teststaticor struct{}
@@ -38,11 +38,14 @@ func (ts *teststaticor) Manage(c Ctx) {
 
 func TestStaticor(t *testing.T) {
 	ss := &teststaticor{}
-	a := New("external staticor", UseStaticor(ss))
+	a := testApp(
+		t,
+		"testExternalStaticor",
+		UseStaticor(ss),
+	)
 	a.STATIC("/staticor/")
-	a.Configure()
-	p := NewPerformer(t, a, 200, "GET", "/staticor/")
-	performFor(p)
+	p := ZeroExpectationPerformer(t, a, 200, "GET", "/staticor/")
+	p.Perform()
 	b := p.response.Body.String()
 	if b != "from external staticor" {
 		t.Errorf(`Test external staticor did not return "from external staticor", returned %s`, b)

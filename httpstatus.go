@@ -60,11 +60,9 @@ func (s status) first(c Ctx) {
 }
 
 func panicsignal(c Ctx) {
-	if !CurrentMode(c).Testing {
-		for _, p := range Panics(c) {
-			sig := fmt.Sprintf("encountered an internal error: %s\n-----\n%s\n-----\n", p.Error(), p.Meta)
-			c.Call("panicsignal", sig)
-		}
+	for _, p := range Panics(c) {
+		sig := fmt.Sprintf("encountered an internal error: %s\n-----\n%s\n-----\n", p.Error(), p.Meta)
+		c.Call("panicsignal", sig)
 	}
 }
 

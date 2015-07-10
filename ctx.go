@@ -28,7 +28,7 @@ type Ctx interface {
 	Next()
 
 	// Cancel is called to finalize the Ctx in any way needed, e.g.
-	// post-processing or logging &signalling
+	// post-processing, signalling, or logging.
 	Cancel()
 }
 
@@ -38,8 +38,9 @@ var Canceled = errors.New("flotilla.Ctx canceled")
 func (a *App) Ctx() MakeCtxFunc {
 	return func(rw http.ResponseWriter, rq *http.Request, rs *engine.Result, rt *Route) Ctx {
 		c := NewCtx(a.fxtensions, rs)
-		c.reset(rq, rw, rt.managers)
+		c.reset(rq, rw, rt.Managers)
 		c.Call("start", a.SessionManager)
+		c.In(c.Session)
 		return c
 	}
 }
@@ -134,10 +135,14 @@ type ctx struct {
 	Request *http.Request
 	Session session.SessionStore
 	Data    map[string]interface{}
+	Flasher
 }
 
 func emptyCtx() *ctx {
-	return &ctx{handlers: defaulthandlers(), Erroror: xrr.DefaultErroror()}
+	return &ctx{
+		handlers: defaulthandlers(),
+		Erroror:  xrr.DefaultErroror(),
+	}
 }
 
 // NewCtx returns a default ctx, given a map of Fxtensions and an Engine Result.
@@ -146,6 +151,7 @@ func NewCtx(fxt map[string]Fxtension, rs *engine.Result) *ctx {
 	c.Result = rs
 	c.Extensor = newextensor(fxt, c)
 	c.RW = &c.rw
+	c.Flasher = NewFlasher()
 	return c
 }
 
@@ -200,4 +206,8 @@ func (c *ctx) rerun(managers ...Manage) {
 
 func (c *ctx) push(fn Manage) {
 	c.deferred = append(c.deferred, fn)
+}
+
+func (c *ctx) bounce(fn Manage) {
+	c.deferred = []Manage{fn}
 }

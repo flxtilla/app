@@ -7,28 +7,24 @@ import (
 	"github.com/thrisp/flotilla/xrr"
 )
 
-var (
-	configureFirst = []Configuration{
-		cengine,
-	}
+var configureFirst = []Configuration{
+	cengine,
+}
 
-	configureLast = []Configuration{
-		cstatic,
-		cblueprints,
-		ctemplating,
-		csession,
-	}
-)
+var configureLast = []Configuration{
+	cstatic,
+	cblueprints,
+	ctemplating,
+	csession,
+}
 
-type (
-	Config struct {
-		Configured    bool
-		Configuration []Configuration
-		deferred      []Configuration
-	}
+type Config struct {
+	Configured    bool
+	Configuration []Configuration
+	deferred      []Configuration
+}
 
-	Configuration func(*App) error
-)
+type Configuration func(*App) error
 
 func newConfig(cnf ...Configuration) *Config {
 	return &Config{
@@ -110,7 +106,7 @@ func EnvItem(items ...string) Configuration {
 			k, value := v[0], v[1]
 			sl := strings.Split(k, "_")
 			if len(sl) > 1 {
-				section, label := sl[0], sl[1]
+				section, label := sl[0], strings.Join(sl[1:], "_")
 				a.Env.Store.add(section, label, value)
 			} else {
 				a.Env.Store.add("", sl[0], value)
@@ -133,7 +129,7 @@ func UseStaticor(s Staticor) Configuration {
 	}
 }
 
-func UseTemplator(t Templator) Configuration {
+func WithTemplator(t Templator) Configuration {
 	return func(a *App) error {
 		a.Env.Templator = t
 		return nil
@@ -154,9 +150,16 @@ func CtxProcessors(fns map[string]interface{}) Configuration {
 	}
 }
 
-func WithAssets(ast ...*AssetFS) Configuration {
+func WithAssets(ast ...AssetFS) Configuration {
 	return func(a *App) error {
 		a.Env.Assets = append(a.Env.Assets, ast...)
+		return nil
+	}
+}
+
+func WithQueue(name string, q Queue) Configuration {
+	return func(a *App) error {
+		a.Messaging.Queues[name] = q
 		return nil
 	}
 }

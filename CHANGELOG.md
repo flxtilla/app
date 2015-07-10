@@ -1,5 +1,19 @@
 ##Changelog
 
+### Flotilla 1.1.0 (24.6.2015)
+
+- cleanup & refactor testing
+- Expectation & Performer based testing idioms
+- improvements to Blueprint registry
+- improvements to Route creation & management
+- updated & refactored Flash messaging
+
+
+### Flotilla 1.0.1 (19.3.2015)
+
+- bugfix for inability to add multiple Manage for different request methods, but the same path
+
+
 ### Flotilla 1.0.0 (18.3.2015)
 
 - [ground-up reassembly & rewrite from former codebase](https://github.com/fc-thrisp-hurrata-dlm-graveyard/flotilla-defunct)
@@ -12,13 +26,16 @@
 - errors subpackage: xrr defining an interface for uniform, reusable erroring 
 - refactor, cleanup and subsequent new messes overall 
 
+
 ### Flotilla 0.3.2 ~unreleased
 
 - change 'ctx functions' to 'extensions'
 
+
 ### Flotilla 0.3.1 (16.12.2014)
 
 - update travis.yml to accomodate 1.4/1.3 cover package path difference
+
 
 ### Flotilla 0.3.0 (15.12.2014)
 
@@ -26,6 +43,7 @@
 - eliminate old Blueprint interface, merge RouteGroup & Blueprint idioms to one
 - engine interface & default engine, for future extensible engines
 - essential testing, bugfixes, and refactoring
+
 
 ### Flotilla 0.2.0 ~unreleased
 
@@ -38,6 +56,7 @@
 - public store item value for easier access to store settings 
 - deferral of ctx functions until after all handlers have run
 - bugfixes & refactoring  
+
 
 ### Flotilla 0.1.0 (17.10.2014)
 

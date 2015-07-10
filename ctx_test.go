@@ -26,14 +26,14 @@ func (c *tc) Call(name string, vals ...interface{}) (interface{}, error) {
 func (c *tc) Cancel() {}
 
 func MakeTestCtx(rw http.ResponseWriter, rq *http.Request, rs *engine.Result, rt *Route) Ctx {
-	c := &tc{h: rt.managers[0]}
+	c := &tc{h: rt.Managers[0]}
 	return c
 }
 
 func testctx(method string, t *testing.T) {
 	var passed bool = false
 
-	r := NewRoute(method, "/test_ctx", false, []Manage{func(c Ctx) { passed = true }})
+	r := NewRoute(defaultRouteConf(method, "/test_ctx", []Manage{func(c Ctx) { passed = true }}))
 
 	a := Base("test_ctx")
 
@@ -49,9 +49,7 @@ func testctx(method string, t *testing.T) {
 
 	a.Configure()
 
-	p := NewPerformer(t, a, 200, method, "/test_ctx")
-
-	performFor(p)
+	ZeroExpectationPerformer(t, a, 200, method, "/test_ctx").Perform()
 
 	if passed == false {
 		t.Errorf("Test Ctx route handler %s was not invoked.", method)
