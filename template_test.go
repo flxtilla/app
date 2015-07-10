@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,19 +64,6 @@ var tstctxprc map[string]interface{} = map[string]interface{}{
 	"Hi3": tcall,
 }
 
-func tt(c Ctx) {
-	ret := make(map[string]interface{})
-	ret["Title"] = "rendered from test template test.html"
-	c.Call("flash", "test_flash", "TEST_FLASH_ONE")
-	c.Call("flash", "test_flash", "TEST_FLASH_TWO")
-	c.Call("set", "set_in_ctx", "SET_IN_CTX")
-	c.Call("rendertemplate", "test.html", ret)
-}
-
-func at(c Ctx) {
-	c.Call("rendertemplate", "test_asset.html", "rendered from test template test_asset.html")
-}
-
 func templatecontains(t *testing.T, body string, mustcontain string) {
 	if !strings.Contains(body, mustcontain) {
 		t.Errorf(`Test template was not rendered correctly, expecting %s but it is not present:
@@ -88,22 +76,11 @@ func TestDefaultTemplating(t *testing.T) {
 	a := testApp(
 		t,
 		"testDefaultTemplating",
-		testConf(
-			WithAssets(TestAsset),
-			tplfuncsconf(tplfuncs),
-			CtxProcessor("Hi1", tstrg),
-			CtxProcessors(tstctxprc),
-		),
-		testRoutes(
-			NewRoute(
-				defaultRouteConf("GET", "/template", []Manage{tt}),
-			),
-			NewRoute(
-				defaultRouteConf("GET", "/asset_template", []Manage{at}),
-			),
-		),
+		WithAssets(TestAsset),
+		tplfuncsconf(tplfuncs),
+		CtxProcessor("Hi1", tstrg),
+		CtxProcessors(tstctxprc),
 	)
-
 	a.Env.TemplateDirs(testtemplatedirectory())
 
 	d1 := stringtemplates(a.Env.TemplateDirs())
@@ -125,31 +102,59 @@ func TestDefaultTemplating(t *testing.T) {
 		}
 	}
 
-	p := NewPerformer(t, a, 200, "GET", "/template")
+	exp1, _ := NewExpectation(
+		200,
+		"GET",
+		"/template",
+		func(t *testing.T) Manage {
+			return func(c Ctx) {
+				ret := make(map[string]interface{})
+				ret["Title"] = "rendered from test template test.html"
+				c.Call("flash", "test_flash", "TEST_FLASH_ONE")
+				c.Call("flash", "test_flash", "TEST_FLASH_TWO")
+				c.Call("set", "set_in_ctx", "SET_IN_CTX")
+				c.Call("rendertemplate", "test.html", ret)
+			}
+		},
+	)
+	exp1.SetPost(
+		func(t *testing.T, r *httptest.ResponseRecorder) {
+			lookfor := []string{
+				`<div>TEST TEMPLATE</div>`,
+				`Hello World!: TEST`,
+				`returned STRING`,
+				`<div>returned HTML</div>`,
+				`returned CALL`,
+				`[TEST_FLASH_ONE TEST_FLASH_TWO]`,
+				`/template?value1%3Dadditional`,
+				`unable to get url for route \does\not\exist\p\s\get with params [param /a/splat/fragment]`,
+				`SET_IN_CTX`,
+			}
 
-	performFor(p)
+			for _, lf := range lookfor {
+				templatecontains(t, r.Body.String(), lf)
+			}
 
-	lookfor := []string{
-		`<div>TEST TEMPLATE</div>`,
-		`Hello World!: TEST`,
-		`returned STRING`,
-		`<div>returned HTML</div>`,
-		`returned CALL`,
-		`[TEST_FLASH_ONE TEST_FLASH_TWO]`,
-		`/template?value1%3Dadditional`,
-		`unable to get url for route \does\not\exist\p\s\get with params [param /a/splat/fragment]`,
-		`SET_IN_CTX`,
-	}
+		},
+	)
 
-	for _, lf := range lookfor {
-		templatecontains(t, p.response.Body.String(), lf)
-	}
+	exp2, _ := NewExpectation(
+		200,
+		"GET",
+		"/asset_template",
+		func(t *testing.T) Manage {
+			return func(c Ctx) {
+				c.Call("rendertemplate", "test_asset.html", "rendered from test template test_asset.html")
+			}
+		},
+	)
+	exp2.SetPost(
+		func(t *testing.T, r *httptest.ResponseRecorder) {
+			templatecontains(t, r.Body.String(), `<title>rendered from test template test_asset.html</title>`)
+		},
+	)
 
-	p = NewPerformer(t, a, 200, "GET", "/asset_template")
-
-	performFor(p)
-
-	templatecontains(t, p.response.Body.String(), `<title>rendered from test template test_asset.html</title>`)
+	MultiPerformer(t, a, exp1, exp2).Perform()
 }
 
 type testtemplator struct{}
@@ -177,23 +182,26 @@ func TestTemplator(t *testing.T) {
 	a := testApp(
 		t,
 		"testExternalTemplator",
-		testConf(
-			UseTemplator(ttr),
-		),
-		testRoutes(
-			NewRoute(
-				defaultRouteConf(
-					"GET",
-					"/templator/",
-					[]Manage{tt},
-				),
-			),
-		),
+		WithTemplator(ttr),
 	)
-	p := NewPerformer(t, a, 200, "GET", "/templator/")
-	performFor(p)
-	b := p.response.Body.String()
-	if b != "test templator" {
-		t.Errorf(`Test external templator rendered %s, not "test templator"`, b)
-	}
+	exp, _ := NewExpectation(
+		200,
+		"GET",
+		"/templator/",
+		func(t *testing.T) Manage {
+			return func(c Ctx) {
+				c.Call("rendertemplate", "test.html", "test data")
+			}
+		},
+	)
+	exp.SetPost(
+		func(t *testing.T, r *httptest.ResponseRecorder) {
+			b := r.Body.String()
+			if b != "test templator" {
+				t.Errorf(`Test external templator rendered %s, not "test templator"`, b)
+			}
+
+		},
+	)
+	SimplePerformer(t, a, exp).Perform()
 }

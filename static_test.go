@@ -13,20 +13,13 @@ func TestStatic(t *testing.T) {
 	a := testApp(
 		t,
 		"testStatic",
-		testConf(
-			WithAssets(TestAsset),
-		),
-		nil,
+		WithAssets(TestAsset),
 	)
 	a.STATIC("/resources/static/css/*filepath")
 	a.StaticDirs(teststaticdirectory())
-	a.Configure()
-	p := NewPerformer(t, a, 200, "GET", "/static/css/static.css")
-	performFor(p)
-	p = NewPerformer(t, a, 200, "GET", "/static/css/css/css_asset.css")
-	performFor(p)
-	p = NewPerformer(t, a, 404, "GET", "/static/css/no.css")
-	performFor(p)
+	ZeroExpectationPerformer(t, a, 200, "GET", "/static/css/static.css").Perform()
+	ZeroExpectationPerformer(t, a, 200, "GET", "/static/css/css/css/css_asset.css").Perform()
+	ZeroExpectationPerformer(t, a, 404, "GET", "/static/css/no.css").Perform()
 }
 
 type teststaticor struct{}
@@ -48,15 +41,11 @@ func TestStaticor(t *testing.T) {
 	a := testApp(
 		t,
 		"testExternalStaticor",
-		testConf(
-			UseStaticor(ss),
-		),
-		nil,
+		UseStaticor(ss),
 	)
 	a.STATIC("/staticor/")
-	a.Configure()
-	p := NewPerformer(t, a, 200, "GET", "/staticor/")
-	performFor(p)
+	p := ZeroExpectationPerformer(t, a, 200, "GET", "/staticor/")
+	p.Perform()
 	b := p.response.Body.String()
 	if b != "from external staticor" {
 		t.Errorf(`Test external staticor did not return "from external staticor", returned %s`, b)

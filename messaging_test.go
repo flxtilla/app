@@ -16,6 +16,11 @@ func testpanicq(t *testing.T, a *App) Queue {
 	}
 }
 
+func mkTestQueues(t *testing.T, a *App) {
+	a.Messaging.Queues["out"] = testout(t, a)
+	a.Messaging.Queues["panic"] = testpanicq(t, a)
+}
+
 func testsignalq(t *testing.T, a *App, against func(*testing.T, Signal)) {
 	go func() {
 		for msg := range a.Signals {
@@ -25,7 +30,7 @@ func testsignalq(t *testing.T, a *App, against func(*testing.T, Signal)) {
 }
 
 func testSignal(method string, t *testing.T) {
-	a := testApp(t, "testSignal", testConf(WithQueue("none", func(string) {})), nil)
+	a := testApp(t, "testSignal", WithQueue("none", func(string) {}))
 	testsignalq(t, a, func(t *testing.T, msg Signal) {
 		m := fmt.Sprintf("%s", msg)
 		if m != "TEST" {
@@ -45,10 +50,7 @@ func testSignal(method string, t *testing.T) {
 			a.Send("notaqueue", "TEST")
 		}
 	}})))
-	a.Configure()
-	p := NewPerformer(t, a, 200, method, "/test_signal_sent")
-	performFor(p)
-
+	ZeroExpectationPerformer(t, a, 200, method, "/test_signal_sent").Perform()
 }
 
 func TestSignal(t *testing.T) {

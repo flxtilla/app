@@ -6,26 +6,23 @@ import (
 	"os"
 )
 
-type (
-	// A byte signal for App messaging.
-	Signal []byte
+// A byte signal for App messaging.
+type Signal []byte
 
-	// A Signal channel for App messaging.
+// A Signal channel for App messaging.
+type Signals chan Signal
+
+// A function taking any string.
+type Queue func(string)
+
+// Messaging encapsulates signalling & logging in an App.
+type Messaging struct {
 	Signals chan Signal
+	Queues  map[string]Queue
+	Logger  *log.Logger
+}
 
-	Queue func(string)
-
-	// Messaging encapsulates signalling & logging in an App.
-	Messaging struct {
-		Signals chan Signal
-		Queues  map[string]Queue
-		Logger  *log.Logger
-	}
-)
-
-var (
-	FlotillaPanic = []byte("flotilla-panic")
-)
+var FlotillaPanic = []byte("flotilla-panic")
 
 func newMessaging() *Messaging {
 	m := &Messaging{}

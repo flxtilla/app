@@ -14,34 +14,11 @@ import (
 	"github.com/thrisp/flotilla/xrr"
 )
 
-type (
-	FakeFile struct {
-		Path string
-		Dir  bool
-		Len  int64
-	}
-
-	AssetFile struct {
-		*bytes.Reader
-		io.Closer
-		FakeFile
-	}
-
-	AssetDirectory struct {
-		AssetFile
-		ChildrenRead int
-		Children     []os.FileInfo
-	}
-
-	AssetFS struct {
-		Asset      func(string) ([]byte, error)
-		AssetDir   func(string) ([]string, error)
-		AssetNames func() []string
-		Prefix     string
-	}
-
-	Assets []*AssetFS
-)
+type FakeFile struct {
+	Path string
+	Dir  bool
+	Len  int64
+}
 
 func (f *FakeFile) Name() string {
 	_, name := filepath.Split(f.Path)
@@ -72,6 +49,12 @@ func (f *FakeFile) Sys() interface{} {
 	return nil
 }
 
+type AssetFile struct {
+	*bytes.Reader
+	io.Closer
+	FakeFile
+}
+
 func NewAssetFile(name string, content []byte) *AssetFile {
 	return &AssetFile{
 		bytes.NewReader(content),
@@ -88,7 +71,13 @@ func (f *AssetFile) Stat() (os.FileInfo, error) {
 	return f, nil
 }
 
-func NewAssetDirectory(name string, children []string, fs *AssetFS) *AssetDirectory {
+type AssetDirectory struct {
+	AssetFile
+	ChildrenRead int
+	Children     []os.FileInfo
+}
+
+func NewAssetDirectory(name string, children []string, fs AssetFS) *AssetDirectory {
 	fileinfos := make([]os.FileInfo, 0, len(children))
 	for _, child := range children {
 		_, err := fs.AssetDir(filepath.Join(name, child))
@@ -120,7 +109,42 @@ func (f *AssetDirectory) Stat() (os.FileInfo, error) {
 	return f, nil
 }
 
-func (fs *AssetFS) HasAsset(requested string) (string, bool) {
+type AssetFS interface {
+	Asset(string) ([]byte, error)
+	AssetDir(string) ([]string, error)
+	AssetNames() []string
+	HttpAsset(string) (http.File, error)
+}
+
+type assetFS struct {
+	asset      func(string) ([]byte, error)
+	assetDir   func(string) ([]string, error)
+	assetNames func() []string
+	prefix     string
+}
+
+func NewAssetFS(afn func(string) ([]byte, error), adfn func(string) ([]string, error), anfn func() []string, prefix string) AssetFS {
+	return &assetFS{
+		asset:      afn,
+		assetDir:   adfn,
+		assetNames: anfn,
+		prefix:     prefix,
+	}
+}
+
+func (fs *assetFS) Asset(in string) ([]byte, error) {
+	return fs.asset(in)
+}
+
+func (fs *assetFS) AssetDir(in string) ([]string, error) {
+	return fs.assetDir(in)
+}
+
+func (fs *assetFS) AssetNames() []string {
+	return fs.assetNames()
+}
+
+func (fs *assetFS) HasAsset(requested string) (string, bool) {
 	for _, filename := range fs.AssetNames() {
 		if path.Base(filename) == requested {
 			return filename, true
@@ -129,7 +153,7 @@ func (fs *AssetFS) HasAsset(requested string) (string, bool) {
 	return "", false
 }
 
-func (fs *AssetFS) GetAsset(requested string) (http.File, error) {
+func (fs *assetFS) HttpAsset(requested string) (http.File, error) {
 	if hasasset, ok := fs.HasAsset(requested); ok {
 		f, err := fs.Open(hasasset)
 		return f, err
@@ -137,8 +161,8 @@ func (fs *AssetFS) GetAsset(requested string) (http.File, error) {
 	return nil, xrr.NewError("asset %s unvailable", requested)
 }
 
-func (fs *AssetFS) Open(name string) (http.File, error) {
-	name = path.Join(fs.Prefix, name)
+func (fs *assetFS) Open(name string) (http.File, error) {
+	name = path.Join(fs.prefix, name)
 	if len(name) > 0 && name[0] == '/' {
 		name = name[1:]
 	}
@@ -152,9 +176,11 @@ func (fs *AssetFS) Open(name string) (http.File, error) {
 	return NewAssetFile(name, b), nil
 }
 
+type Assets []AssetFS
+
 func (a Assets) Get(requested string) (http.File, error) {
 	for _, x := range a {
-		f, err := x.GetAsset(requested)
+		f, err := x.HttpAsset(requested)
 		if err == nil {
 			return f, nil
 		}

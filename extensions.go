@@ -275,6 +275,11 @@ func (f *flasher) Flash(key, value string) {
 	f.flashes[key] = append(f.flashes[key], value)
 }
 
+func Flshr(c Ctx) Flasher {
+	fl, _ := c.Call("flasher")
+	return fl.(Flasher)
+}
+
 func flshr(c *ctx) (Flasher, error) {
 	return c.Flasher, nil
 }
@@ -388,6 +393,11 @@ func emit(a *App) func(*ctx, string) error {
 func push(c *ctx, m Manage) error {
 	c.push(m)
 	return nil
+}
+
+func CurrentRequest(c Ctx) *http.Request {
+	req, _ := c.Call("request")
+	return req.(*http.Request)
 }
 
 func currentrequest(c *ctx) *http.Request {

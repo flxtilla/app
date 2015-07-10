@@ -13,7 +13,7 @@ func testBlueprint(method string, t *testing.T) {
 	var inc int
 	var incis bool
 
-	a := testApp(t, "testBlueprint", nil, nil)
+	a := testApp(t, "testBlueprint")
 
 	b := NewBlueprint("/blueprint")
 
@@ -62,9 +62,7 @@ func testBlueprint(method string, t *testing.T) {
 
 	expected := "/blueprint/test_blueprint"
 
-	p := NewPerformer(t, a, 200, method, expected)
-
-	performFor(p)
+	ZeroExpectationPerformer(t, a, 200, method, expected).Perform()
 
 	if passed != true {
 		t.Errorf("%s blueprint route: %s was not invoked.", method, expected)
@@ -96,7 +94,7 @@ func TestBlueprint(t *testing.T) {
 
 func registerBlueprints(method string, t *testing.T) {
 	var passed0, passed1, passed2 bool
-	a := testApp(t, "testRegisterBlueprints", nil, nil)
+	a := testApp(t, "testRegisterBlueprints")
 	m0 := func(c Ctx) { passed0 = true }
 	m1 := func(c Ctx) { passed1 = true }
 	m2 := func(c Ctx) { passed2 = true }
@@ -111,12 +109,9 @@ func registerBlueprints(method string, t *testing.T) {
 	b2.Manage(two)
 	a.RegisterBlueprints(b0, b1, b2)
 	a.Configure()
-	p0 := NewPerformer(t, a, 200, method, "/zero/test")
-	performFor(p0)
-	p1 := NewPerformer(t, a, 200, method, "/blueprint/route/one")
-	performFor(p1)
-	p2 := NewPerformer(t, a, 200, method, "/blueprint/route/two")
-	performFor(p2)
+	ZeroExpectationPerformer(t, a, 200, method, "/zero/test").Perform()
+	ZeroExpectationPerformer(t, a, 200, method, "/blueprint/route/one").Perform()
+	ZeroExpectationPerformer(t, a, 200, method, "/blueprint/route/two").Perform()
 	if passed0 != true && passed1 != true && passed2 != true {
 		t.Errorf("Blueprint routes were not merged properly.")
 	}
@@ -140,7 +135,7 @@ func TestBlueprintRegister(t *testing.T) {
 func chainBlueprints(method string, t *testing.T) {
 	var x1, x2, x3 bool
 	var y int
-	a := testApp(t, "testChainedBlueprints", nil, nil)
+	a := testApp(t, "testChainedBlueprints")
 	a.Use(func(c Ctx) {
 		x1 = true
 		y = 1
@@ -162,8 +157,7 @@ func chainBlueprints(method string, t *testing.T) {
 		}
 	})
 	a.Configure()
-	p := NewPerformer(t, a, 200, method, "/blueprintone/blueprinttwo/third")
-	performFor(p)
+	ZeroExpectationPerformer(t, a, 200, method, "/blueprintone/blueprinttwo/third").Perform()
 	if !x1 && !x2 && !x3 && !(y == 3) {
 		t.Errorf("Blueprint Manage chain error, chained test blueprint did not execute expected Manage.")
 	}
@@ -178,7 +172,7 @@ func TestChainBlueprints(t *testing.T) {
 func mountBlueprint(method string, t *testing.T) {
 	var passed bool
 
-	a := testApp(t, "testMountBlueprint", nil, nil)
+	a := testApp(t, "testMountBlueprint")
 
 	b := NewBlueprint("/mount")
 
@@ -207,9 +201,7 @@ func mountBlueprint(method string, t *testing.T) {
 	}
 
 	perform := func(expected string, method string, app *App) {
-		p := NewPerformer(t, app, 200, method, expected)
-
-		performFor(p)
+		ZeroExpectationPerformer(t, app, 200, method, expected).Perform()
 
 		if passed == false {
 			t.Errorf(fmt.Sprintf("%s blueprint route: %s was not invoked.", method, expected))

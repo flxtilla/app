@@ -27,8 +27,10 @@ func TestRoute(t *testing.T) {
 
 	r4 := NewRoute(defaultRouteConf("POST", "/random/route/with/:param", []Manage{one, two}))
 
-	a := testApp(t, "testroute", nil, testRoutes(r1, r2))
+	a := testApp(t, "testroute")
 
+	a.Manage(r1)
+	a.Manage(r2)
 	a.Manage(r3)
 	a.Manage(r4)
 

@@ -6,9 +6,8 @@ go:
   - tip
 
 before_install:
-- go get github.com/axw/gocov/gocov
-- go get github.com/mattn/goveralls
-- go get golang.org/x/tools/cmd/cover
-
+  - go get github.com/axw/gocov/gocov
+  - go get github.com/mattn/goveralls
+  - if ! go get code.google.com/p/go.tools/cmd/cover; then go get golang.org/x/tools/cmd/cover; fi
 script:
-- $HOME/gopath/bin/goveralls -repotoken j9YTau8wu8pzQbriGxZgBuWx0bdC0aEF3 
+    - $HOME/gopath/bin/goveralls -service=travis-ci

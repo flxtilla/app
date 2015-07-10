@@ -49,9 +49,7 @@ func testctx(method string, t *testing.T) {
 
 	a.Configure()
 
-	p := NewPerformer(t, a, 200, method, "/test_ctx")
-
-	performFor(p)
+	ZeroExpectationPerformer(t, a, 200, method, "/test_ctx").Perform()
 
 	if passed == false {
 		t.Errorf("Test Ctx route handler %s was not invoked.", method)
