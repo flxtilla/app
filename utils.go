@@ -59,13 +59,17 @@ func equalFunc(a, b interface{}) bool {
 	return av.InterfaceData() == bv.InterfaceData()
 }
 
+var NotAFunction = xrr.NewXrror("Provided (%+v, type: %T), but it is not a function").Out
+
+var BadFunc = xrr.NewXrror("Cannot use function %q with %d results\nreturn must be 1 value, or 1 value and 1 error value").Out
+
 func valueFunc(fn interface{}) reflect.Value {
 	v := reflect.ValueOf(fn)
 	if v.Kind() != reflect.Func {
-		panic(xrr.NewError("flotilla : Provided (%+v, type: %T), but it is not a function", fn, fn))
+		panic(NotAFunction(fn, fn))
 	}
 	if !goodFunc(v.Type()) {
-		panic(xrr.NewError("flotilla: Cannot use function %q with %d results\nreturn must be 1 value, or 1 value and 1 error value", fn, v.Type().NumOut()))
+		panic(BadFunc(fn, v.Type().NumOut()))
 	}
 	return v
 }
@@ -88,18 +92,22 @@ func canBeNil(typ reflect.Type) bool {
 	return false
 }
 
+var WrongNumberArgs = xrr.NewXrror("Wrong number of args: received %d, but expected at least %d").Out
+
+var WrongArgType = xrr.NewXrror("Argument %d has type %s -- should be %s").Out
+
 func call(fn reflect.Value, args ...interface{}) (interface{}, error) {
 	typ := fn.Type()
 	numIn := typ.NumIn()
 	var dddType reflect.Type
 	if typ.IsVariadic() {
 		if len(args) < numIn-1 {
-			return nil, xrr.NewError("flotilla : wrong number of args -- got %d want at least %d", len(args), numIn-1)
+			return nil, WrongNumberArgs(len(args), numIn-1)
 		}
 		dddType = typ.In(numIn - 1).Elem()
 	} else {
 		if len(args) != numIn {
-			return nil, xrr.NewError("flotilla : wrong number of args -- got %d want %d", len(args), numIn)
+			return nil, WrongNumberArgs(len(args), numIn)
 		}
 	}
 	argv := make([]reflect.Value, len(args))
@@ -116,7 +124,7 @@ func call(fn reflect.Value, args ...interface{}) (interface{}, error) {
 			value = reflect.Zero(argType)
 		}
 		if !value.Type().AssignableTo(argType) {
-			return nil, xrr.NewError("flotilla : arg %d has type %s -- should be %s", i, value.Type(), argType)
+			return nil, WrongArgType(i, value.Type(), argType)
 		}
 		argv[i] = value
 	}
@@ -134,11 +142,13 @@ func dropTrailing(path string, trailing string) string {
 	return path
 }
 
+var InvalidCtxFunc = xrr.NewXrror("function %q is not a valid Flotilla Ctx function\nmust be a function and return must be 1 value, or 1 value and 1 error value").Out
+
 func validExtension(fn interface{}) error {
 	if goodFunc(valueFunc(fn).Type()) {
 		return nil
 	}
-	return xrr.NewError("function %q is not a valid Flotilla Ctx function; must be a function and return must be 1 value, or 1 value and 1 error value", fn)
+	return InvalidCtxFunc(fn)
 }
 
 func StatusColor(code int) (color string) {

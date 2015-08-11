@@ -73,9 +73,9 @@ func panicserve(c Ctx, b bytes.Buffer) {
 }
 
 // Panics returns any panic type error messages attached to the Ctx.
-func Panics(c Ctx) xrr.ErrorMsgs {
+func Panics(c Ctx) xrr.Xrrors {
 	panics, _ := c.Call("panics")
-	return panics.(xrr.ErrorMsgs)
+	return panics.(xrr.Xrrors)
 }
 
 func panictobuffer(c Ctx) bytes.Buffer {

@@ -73,6 +73,8 @@ func (s Store) LoadConfByte(b []byte, name string) (err error) {
 	return err
 }
 
+var StoreParseError = xrr.NewXrror("Store configuration parsing: syntax error at '%s:%d'.").Out
+
 func (s Store) parse(reader *bufio.Reader, filename string) (err error) {
 	lineno := 0
 	section := ""
@@ -96,7 +98,7 @@ func (s Store) parse(reader *bufio.Reader, filename string) (err error) {
 		}
 		section, err = s.parseLine(section, line)
 		if err != nil {
-			return xrr.NewError("[FLOTILLA] Store configuration parsing: syntax error at '%s:%d'.", filename, lineno)
+			return StoreParseError(filename, lineno)
 		}
 	}
 	return err

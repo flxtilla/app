@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"html/template"
 	"reflect"
-
-	"github.com/thrisp/flotilla/xrr"
 )
 
 type (
@@ -39,7 +37,7 @@ func (t TemplateData) UrlFor(route string, external bool, params ...string) stri
 	if c, ok := t["Ctx"].(Ctx); ok {
 		ret, err := c.Call("urlfor", route, external, params)
 		if err != nil {
-			return xrr.NewError(err.Error()).Error()
+			return err.Error()
 		}
 		return ret.(string)
 	}

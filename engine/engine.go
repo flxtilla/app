@@ -132,7 +132,7 @@ func (e *engine) defaultStatus(code int) Rule {
 func (e *engine) rcvr(rw http.ResponseWriter, rq *http.Request) {
 	if rcv := recover(); rcv != nil {
 		s := e.status(500)
-		s.Frror("%s", xrr.ErrorTypePanic, xrr.Stack(3), rcv)
+		s.Xrror("%s", xrr.ErrorTypePanic, xrr.Stack(3), rcv)
 		s.Rule(rw, rq, s)
 	}
 }

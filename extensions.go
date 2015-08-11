@@ -45,9 +45,11 @@ type fxtension struct {
 	fns  map[string]interface{}
 }
 
+var InvalidExtension = xrr.NewXrror("%q is not a valid Fxtension.").Out
+
 func validFxtension(fx interface{}) error {
 	if _, valid := fx.(Fxtension); !valid {
-		xrr.NewError("%q is not a valid Fxtension.", fx)
+		InvalidExtension(fx)
 	}
 	return nil
 }
@@ -122,6 +124,8 @@ func iswritten(c *ctx) bool {
 	return c.RW.Written()
 }
 
+var InvalidStatusCode = xrr.NewXrror("Cannot send a redirect with status code %d").Out
+
 func redirect(c *ctx, code int, location string) error {
 	if code >= 300 && code <= 308 {
 		c.bounce(func(pc Ctx) {
@@ -131,7 +135,7 @@ func redirect(c *ctx, code int, location string) error {
 		})
 		return nil
 	} else {
-		return xrr.NewError("Cannot send a redirect with status code %d", code)
+		return InvalidStatusCode(code)
 	}
 }
 
@@ -338,12 +342,14 @@ func files(c *ctx) RequestFiles {
 	return nil
 }
 
+var InvalidKey = xrr.NewXrror("Key %s does not exist.").Out
+
 func getdata(c *ctx, key string) (interface{}, error) {
 	item, ok := c.Data[key]
 	if ok {
 		return item, nil
 	}
-	return nil, xrr.NewError("Key %s does not exist.", key)
+	return nil, InvalidKey(key)
 }
 
 func currentmodefunc(a *App) func(c *ctx) *Modes {
@@ -356,7 +362,7 @@ func currentparams(c *ctx) engine.Params {
 	return c.Params
 }
 
-func panics(c *ctx) xrr.ErrorMsgs {
+func panics(c *ctx) xrr.Xrrors {
 	return c.Result.Errors().ByType(xrr.ErrorTypePanic)
 }
 
@@ -422,12 +428,14 @@ func setdata(c *ctx, key string, item interface{}) error {
 	return nil
 }
 
+var NoStoreItem = xrr.NewXrror("Could not find StoreItem %s").Out
+
 func storequeryfunc(a *App) func(*ctx, string) (*StoreItem, error) {
 	return func(c *ctx, key string) (*StoreItem, error) {
 		if item, ok := a.Env.Store[key]; ok {
 			return item, nil
 		}
-		return nil, xrr.NewError("Could not find StoreItem")
+		return nil, NoStoreItem(key)
 	}
 }
 
@@ -440,6 +448,8 @@ func CheckStore(c Ctx, key string) (*StoreItem, bool) {
 	return nil, false
 }
 
+var NoUrl = xrr.NewXrror("Unable to get url for route %s with params %s.").Out
+
 func urlforfunc(a *App) func(*ctx, string, bool, []string) (string, error) {
 	return func(c *ctx, route string, external bool, params []string) (string, error) {
 		if route, ok := a.Routes()[route]; ok {
@@ -451,7 +461,7 @@ func urlforfunc(a *App) func(*ctx, string, bool, []string) (string, error) {
 				return routeurl.String(), nil
 			}
 		}
-		return "", xrr.NewError("unable to get url for route %s with params %s", route, params)
+		return "", NoUrl(route, params)
 	}
 }
 

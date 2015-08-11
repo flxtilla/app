@@ -9,7 +9,7 @@ import (
 
 type Result struct {
 	*Recorder
-	xrr.Erroror
+	xrr.Xrroror
 	Code   int
 	Rule   Rule
 	Params Params
@@ -19,7 +19,7 @@ type Result struct {
 func NewResult(code int, rule Rule, params Params, tsr bool) *Result {
 	return &Result{
 		Recorder: newRecorder(),
-		Erroror:  xrr.DefaultErroror(),
+		Xrroror:  xrr.NewXrroror(),
 		Code:     code,
 		Rule:     rule,
 		Params:   params,
