@@ -52,6 +52,8 @@ func defaultModes() *Modes {
 	return &Modes{true, false, false}
 }
 
+var SetModeError = xrr.NewXrror("env could not be set to %s").Out
+
 // SetMode sets the provided Modes witht the provided boolean value.
 // e.g. env.SetMode("Production", true)
 func (env *Env) SetMode(mode string, value bool) error {
@@ -60,7 +62,7 @@ func (env *Env) SetMode(mode string, value bool) error {
 		m.SetBool(value)
 		return nil
 	}
-	return xrr.NewError("env could not be set to %s", mode)
+	return SetModeError(mode)
 }
 
 // CurrentMode returns Modes specific to the App the provided Ctx is running within.

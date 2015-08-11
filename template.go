@@ -123,6 +123,8 @@ func (fl *Loader) ListTemplates() interface{} {
 	return ret
 }
 
+var TemplateDoesNotExist = xrr.NewXrror("Template %s does not exist.").Out
+
 // Load a template by string name from the flotilla Loader.
 func (fl *Loader) Load(name string) (string, error) {
 	for _, p := range fl.env.TemplateDirs() {
@@ -141,5 +143,5 @@ func (fl *Loader) Load(name string) (string, error) {
 			}
 		}
 	}
-	return "", xrr.NewError("Template %s does not exist", name)
+	return "", TemplateDoesNotExist(name)
 }

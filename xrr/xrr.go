@@ -23,30 +23,21 @@ var (
 	slash     = []byte("/")
 )
 
-type Erroror interface {
-	Error(err error, typ uint32, meta interface{})
-	Frror(format string, typ uint32, meta interface{}, parameters ...interface{})
-	Errors() ErrorMsgs
+type Xrroror interface {
+	Xrror(err string, typ uint32, meta interface{}, parameters ...interface{})
+	Errors() Xrrors
 }
 
-type erroror struct {
-	errors ErrorMsgs
+func NewXrroror() Xrroror {
+	return &xrroror{}
 }
 
-func DefaultErroror() Erroror {
-	return &erroror{}
+type xrroror struct {
+	errors Xrrors
 }
 
-func (e *erroror) Error(err error, typ uint32, meta interface{}) {
-	e.errors = append(e.errors, ErrorMsg{
-		Err:  err.Error(),
-		Type: typ,
-		Meta: meta,
-	})
-}
-
-func (e *erroror) Frror(err string, typ uint32, meta interface{}, parameters ...interface{}) {
-	e.errors = append(e.errors, ErrorMsg{
+func (x *xrroror) Xrror(err string, typ uint32, meta interface{}, parameters ...interface{}) {
+	x.errors = append(x.errors, &Xrror{
 		Err:        err,
 		Type:       typ,
 		Meta:       meta,
@@ -54,32 +45,37 @@ func (e *erroror) Frror(err string, typ uint32, meta interface{}, parameters ...
 	})
 }
 
-func (e *erroror) Errors() ErrorMsgs {
-	return e.errors
+func (x *xrroror) Errors() Xrrors {
+	return x.errors
 }
 
-type ErrorMsg struct {
+type Xrror struct {
 	Err        string      `json:"error"`
 	Type       uint32      `json:"-"`
 	Meta       interface{} `json:"meta"`
 	parameters []interface{}
 }
 
-func (e ErrorMsg) Error() string {
-	return fmt.Sprintf(e.Err, e.parameters...)
+func (x *Xrror) Error() string {
+	return fmt.Sprintf(x.Err, x.parameters...)
 }
 
-func NewError(err string, params ...interface{}) ErrorMsg {
-	return ErrorMsg{Err: err, parameters: params, Type: ErrorTypeFlotilla}
+func (x *Xrror) Out(p ...interface{}) *Xrror {
+	x.parameters = p
+	return x
 }
 
-type ErrorMsgs []ErrorMsg
+func NewXrror(err string, params ...interface{}) *Xrror {
+	return &Xrror{Err: err, parameters: params, Type: ErrorTypeFlotilla}
+}
 
-func (a ErrorMsgs) ByType(typ uint32) ErrorMsgs {
+type Xrrors []*Xrror
+
+func (a Xrrors) ByType(typ uint32) Xrrors {
 	if len(a) == 0 {
 		return a
 	}
-	result := make(ErrorMsgs, 0, len(a))
+	result := make(Xrrors, 0, len(a))
 	for _, msg := range a {
 		if msg.Type&typ > 0 {
 			result = append(result, msg)
@@ -88,7 +84,7 @@ func (a ErrorMsgs) ByType(typ uint32) ErrorMsgs {
 	return result
 }
 
-func (a ErrorMsgs) String() string {
+func (a Xrrors) String() string {
 	if len(a) == 0 {
 		return ""
 	}

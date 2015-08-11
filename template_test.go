@@ -127,7 +127,7 @@ func TestDefaultTemplating(t *testing.T) {
 				`returned CALL`,
 				`[TEST_FLASH_ONE TEST_FLASH_TWO]`,
 				`/template?value1%3Dadditional`,
-				`unable to get url for route \does\not\exist\p\s\get with params [param /a/splat/fragment]`,
+				`Unable to get url for route \does\not\exist\p\s\get with params [param /a/splat/fragment].`,
 				`SET_IN_CTX`,
 			}
 

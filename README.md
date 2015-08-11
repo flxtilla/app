@@ -3,3 +3,15 @@
 A basic & extensible web framework in Go.
 
 https://thrisp.github.io/flotilla/
+
+Quickstart:
+
+Flotilla can be installed with 
+
+    go get -u github.com/thrisp/flotilla.
+
+There is one external dependency beyond the standard library, to ensure default html templating is handled: [Djinn](https://github.com/thrisp/djinn/).
+
+While the dependency is a requirement,handling templates is something you can modify to your preference.
+
+See https://thrisp.github.io/flotilla/start/ for an example flotilla instance.

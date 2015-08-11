@@ -128,7 +128,7 @@ type ctx struct {
 	*engine.Result
 	*context
 	*handlers
-	xrr.Erroror
+	xrr.Xrroror
 	Extensor
 	rw      responseWriter
 	RW      ResponseWriter
@@ -141,7 +141,7 @@ type ctx struct {
 func emptyCtx() *ctx {
 	return &ctx{
 		handlers: defaulthandlers(),
-		Erroror:  xrr.DefaultErroror(),
+		Xrroror:  xrr.NewXrroror(),
 	}
 }
 

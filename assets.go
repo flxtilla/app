@@ -153,12 +153,14 @@ func (fs *assetFS) HasAsset(requested string) (string, bool) {
 	return "", false
 }
 
+var AssetUnavailable = xrr.NewXrror("Asset %s unavailable").Out
+
 func (fs *assetFS) HttpAsset(requested string) (http.File, error) {
 	if hasasset, ok := fs.HasAsset(requested); ok {
 		f, err := fs.Open(hasasset)
 		return f, err
 	}
-	return nil, xrr.NewError("asset %s unvailable", requested)
+	return nil, AssetUnavailable(requested)
 }
 
 func (fs *assetFS) Open(name string) (http.File, error) {
@@ -185,7 +187,7 @@ func (a Assets) Get(requested string) (http.File, error) {
 			return f, nil
 		}
 	}
-	return nil, xrr.NewError("asset %s unavailable", requested)
+	return nil, AssetUnavailable(requested)
 }
 
 func (a Assets) GetByte(requested string) ([]byte, error) {
@@ -195,5 +197,5 @@ func (a Assets) GetByte(requested string) ([]byte, error) {
 			return b, nil
 		}
 	}
-	return nil, xrr.NewError("asset %s unavailable", requested)
+	return nil, AssetUnavailable(requested)
 }

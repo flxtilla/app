@@ -85,6 +85,8 @@ func cblueprints(a *App) error {
 	return nil
 }
 
+var IllegalMode = xrr.NewXrror("mode must be Development, Testing, or Production; not %s").Out
+
 func Mode(mode string, value bool) Configuration {
 	return func(a *App) error {
 		m := strings.Title(mode)
@@ -95,7 +97,7 @@ func Mode(mode string, value bool) Configuration {
 			}
 			return nil
 		}
-		return xrr.NewError("mode must be Development, Testing, or Production; not %s", mode)
+		return IllegalMode(mode)
 	}
 }
 
