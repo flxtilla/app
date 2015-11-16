@@ -40,18 +40,22 @@ func TemplatorInit(a *App) {
 // TemplateDirs updates with the provided and returns existing template
 // directories listed in the Env.
 func (env *Env) TemplateDirs(dirs ...string) []string {
-	storedirs := env.Store["TEMPLATE_DIRECTORIES"].List(dirs...)
-	if env.Templator != nil {
-		env.Templator.UpdateTemplateDirs(storedirs...)
-		return env.Templator.ListTemplateDirs()
+	i, _ := env.Store.query("TEMPLATE_DIRECTORIES")
+	if i != nil {
+		storedirs := i.List(dirs...)
+		if env.Templator != nil {
+			env.Templator.UpdateTemplateDirs(storedirs...)
+			return env.Templator.ListTemplateDirs()
+		}
+		return storedirs
 	}
-	return storedirs
+	return nil
 }
 
 // NewTemplator returns a new default templator.
 func NewTemplator(env *Env) *templator {
 	j := &templator{Djinn: djinn.Empty()}
-	j.UpdateTemplateDirs(env.Store["TEMPLATE_DIRECTORIES"].List()...)
+	j.UpdateTemplateDirs(env.Store.List("TEMPLATE_DIRECTORIES")...)
 	j.SetConf(djinn.Loaders(NewLoader(env)), djinn.TemplateFunctions(env.tplfunctions))
 	return j
 }

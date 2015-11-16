@@ -428,14 +428,9 @@ func setdata(c *ctx, key string, item interface{}) error {
 	return nil
 }
 
-var NoStoreItem = xrr.NewXrror("Could not find StoreItem %s").Out
-
 func storequeryfunc(a *App) func(*ctx, string) (*StoreItem, error) {
 	return func(c *ctx, key string) (*StoreItem, error) {
-		if item, ok := a.Env.Store[key]; ok {
-			return item, nil
-		}
-		return nil, NoStoreItem(key)
+		return a.Env.Store.query(key)
 	}
 }
 

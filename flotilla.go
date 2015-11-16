@@ -31,7 +31,7 @@ func Base(name string, conf ...Configuration) *App {
 	return app
 }
 
-// New returns a Base initialized App with default plus any provided configuration.
+// New returns a Base initialized App with defaults plus any provided configuration.
 func New(name string, conf ...Configuration) *App {
 	app := Base(name)
 	app.Blueprint = NewBlueprint("/")
@@ -40,6 +40,7 @@ func New(name string, conf ...Configuration) *App {
 	return app
 }
 
+// Returns the App name as a string.
 func (a *App) Name() string {
 	return a.name
 }

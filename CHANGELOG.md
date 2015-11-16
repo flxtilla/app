@@ -1,8 +1,10 @@
 ##Changelog
 
+### Flotilla 1.1.1 (?.?.?)
+
 ### Flotilla 1.1.0 (24.6.2015)
 
-- cleanup & refactor testing
+- refactored testing
 - Expectation & Performer based testing idioms
 - improvements to Blueprint registry
 - improvements to Route creation & management

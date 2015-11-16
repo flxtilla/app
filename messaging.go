@@ -27,7 +27,7 @@ var FlotillaPanic = []byte("flotilla-panic")
 func newMessaging() *Messaging {
 	m := &Messaging{}
 	m.Logger = log.New(os.Stdout, "[Flotilla]", 0)
-	m.Queues = m.defaultqueues()
+	m.Queues = m.defaultQueues()
 	m.Signals = make(Signals, 100)
 	return m
 }
@@ -72,7 +72,7 @@ func (m *Messaging) Send(queue string, message string) {
 	}
 }
 
-func (m Messaging) defaultqueues() map[string]Queue {
+func (m Messaging) defaultQueues() map[string]Queue {
 	return map[string]Queue{
 		"out":   m.DefaultOut,
 		"panic": m.DefaultPanic,

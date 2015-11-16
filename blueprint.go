@@ -7,24 +7,22 @@ import (
 	"github.com/thrisp/flotilla/xrr"
 )
 
-type (
-	setupstate struct {
-		registered bool
-		deferred   []func()
-		held       []*Route
-	}
+type setupstate struct {
+	registered bool
+	deferred   []func()
+	held       []*Route
+}
 
-	// Blueprint is a common grouping of Routes.
-	Blueprint struct {
-		*setupstate
-		app      *App
-		children []*Blueprint
-		Prefix   string
-		Routes
-		Managers []Manage
-		MakeCtx  MakeCtxFunc
-	}
-)
+// Blueprint is a common grouping of Routes.
+type Blueprint struct {
+	*setupstate
+	app      *App
+	children []*Blueprint
+	Prefix   string
+	Routes
+	Managers []Manage
+	MakeCtx  MakeCtxFunc
+}
 
 // Blueprints returns a flat array of Blueprints attached to the App.
 func (a *App) Blueprints() []*Blueprint {
@@ -62,6 +60,7 @@ func (a *App) RegisterBlueprints(blueprints ...*Blueprint) {
 	}
 }
 
+// Provided a prefix returns a Blueprint and boolean indicating existence.
 func (a *App) ExistingBlueprint(prefix string) (*Blueprint, bool) {
 	for _, b := range a.Blueprints() {
 		if b.Prefix == prefix {

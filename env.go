@@ -17,30 +17,29 @@ var (
 	workingTemplates string
 )
 
-type (
-	// Modes configure specific modes for later reference in the App; unless set,
-	// an App defaults to Development true, Production false, and Testing false.
-	Modes struct {
-		Development bool
-		Production  bool
-		Testing     bool
-	}
+// Modes configure specific modes to reference or differentate fuctionality.
+// Unless set, an App defaults to Development true, Production false, and
+// Testing false.
+type Modes struct {
+	Development bool
+	Production  bool
+	Testing     bool
+}
 
-	// Env is the primary environment reference for an App.
-	Env struct {
-		Mode *Modes
-		Store
-		SessionManager *session.Manager
-		Assets
-		Staticor
-		Templator
-		fxtensions    map[string]Fxtension
-		tplfunctions  map[string]interface{}
-		ctxprocessors map[string]reflect.Value
-		customstatus  map[int]*status
-		mkctx         MakeCtxFunc
-	}
-)
+// Env is the primary environment reference for an App.
+type Env struct {
+	Mode *Modes
+	Store
+	SessionManager *session.Manager
+	Assets
+	Staticor
+	Templator
+	fxtensions    map[string]Fxtension
+	tplfunctions  map[string]interface{}
+	ctxprocessors map[string]reflect.Value
+	customstatus  map[int]*status
+	mkctx         MakeCtxFunc
+}
 
 func newEnv(a *App) *Env {
 	e := &Env{Mode: defaultModes(), Store: defaultStore()}
@@ -54,7 +53,7 @@ func defaultModes() *Modes {
 
 var SetModeError = xrr.NewXrror("env could not be set to %s").Out
 
-// SetMode sets the provided Modes witht the provided boolean value.
+// SetMode sets the Mode indicated with a string with the provided boolean value.
 // e.g. env.SetMode("Production", true)
 func (env *Env) SetMode(mode string, value bool) error {
 	m := reflect.ValueOf(env.Mode).Elem().FieldByName(mode)
@@ -117,16 +116,16 @@ func (env *Env) AddTplFuncs(fns map[string]interface{}) {
 	}
 }
 
-func (env *Env) defaultsessionconfig() string {
-	secret := env.Store["SECRET_KEY"].Value
-	cookie_name := env.Store["SESSION_COOKIENAME"].Value
-	session_lifetime := env.Store["SESSION_LIFETIME"].Int64()
+func (env *Env) defaultSessionConfig() string {
+	secret := env.Store.String("SECRET_KEY")
+	cookie_name := env.Store.String("SESSION_COOKIENAME")
+	session_lifetime := env.Store.Int64("SESSION_LIFETIME")
 	prvdrcfg := fmt.Sprintf(`"ProviderConfig":"{\"maxage\": %d,\"cookieName\":\"%s\",\"securityKey\":\"%s\"}"`, session_lifetime, cookie_name, secret)
 	return fmt.Sprintf(`{"cookieName":"%s","enableSetCookie":false,"gclifetime":3600, %s}`, cookie_name, prvdrcfg)
 }
 
-func (env *Env) defaultsessionmanager() *session.Manager {
-	d, err := session.NewManager("cookie", env.defaultsessionconfig())
+func (env *Env) defaultSessionManager() *session.Manager {
+	d, err := session.NewManager("cookie", env.defaultSessionConfig())
 	if err != nil {
 		panic(fmt.Sprintf("Problem with [FLOTILLA] default session manager: %s", err))
 	}
@@ -136,7 +135,7 @@ func (env *Env) defaultsessionmanager() *session.Manager {
 // SessionInit intializes the SessionManager stored with the Env.
 func (env *Env) SessionInit() {
 	if env.SessionManager == nil {
-		env.SessionManager = env.defaultsessionmanager()
+		env.SessionManager = env.defaultSessionManager()
 	}
 	go env.SessionManager.GC()
 }

@@ -37,18 +37,22 @@ func StaticorInit(a *App) {
 // NewStaticor returns a new default flotilla Staticor.
 func NewStaticor(a *App) *staticor {
 	s := &staticor{app: a}
-	s.StaticDirs(s.app.Env.Store["STATIC_DIRECTORIES"].List()...)
+	s.StaticDirs(s.app.Env.Store.List("STATIC_DIRECTORIES")...)
 	return s
 }
 
 // StaticDirs takes any number of directories as string, adding them, and returning
 // a string array of static directories in Env.Store
 func (env *Env) StaticDirs(dirs ...string) []string {
-	storedirs := env.Store["STATIC_DIRECTORIES"].List(dirs...)
-	if env.Staticor != nil {
-		return env.Staticor.StaticDirs(storedirs...)
+	i, _ := env.Store.query("STATIC_DIRECTORIES")
+	if i != nil {
+		storedirs := i.List(dirs...)
+		if env.Staticor != nil {
+			return env.Staticor.StaticDirs(storedirs...)
+		}
+		return storedirs
 	}
-	return storedirs
+	return nil
 }
 
 func (s *staticor) StaticDirs(dirs ...string) []string {

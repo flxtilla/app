@@ -48,25 +48,23 @@ pre p:nth-child(even){background-color: rgba(216,216,216,0.25); margin: 0;}
 `
 )
 
-type (
-	status struct {
-		code     int
-		managers []Manage
-	}
-)
+type status struct {
+	code     int
+	managers []Manage
+}
 
 func (s status) first(c Ctx) {
 	c.Call("headerwrite", s.code)
 }
 
-func panicsignal(c Ctx) {
+func panicSignal(c Ctx) {
 	for _, p := range Panics(c) {
 		sig := fmt.Sprintf("encountered an internal error: %s\n-----\n%s\n-----\n", p.Error(), p.Meta)
 		c.Call("panicsignal", sig)
 	}
 }
 
-func panicserve(c Ctx, b bytes.Buffer) {
+func panicServe(c Ctx, b bytes.Buffer) {
 	servePanic := fmt.Sprintf(panicHtml, b.String())
 	_, _ = c.Call("headermodify", "set", []string{"Content-Type", "text/html"})
 	_, _ = c.Call("writetoresponse", servePanic)
@@ -78,7 +76,7 @@ func Panics(c Ctx) xrr.Xrrors {
 	return panics.(xrr.Xrrors)
 }
 
-func panictobuffer(c Ctx) bytes.Buffer {
+func panicToBuffer(c Ctx) bytes.Buffer {
 	var auffer bytes.Buffer
 	for _, p := range Panics(c) {
 		reader := bufio.NewReader(bytes.NewReader([]byte(fmt.Sprintf("%s", p.Meta))))
@@ -113,8 +111,8 @@ func IsWritten(c Ctx) bool {
 func (s status) panics(c Ctx) {
 	if s.code == 500 && !IsWritten(c) {
 		if !CurrentMode(c).Production {
-			panicserve(c, panictobuffer(c))
-			panicsignal(c)
+			panicServe(c, panicToBuffer(c))
+			panicSignal(c)
 		}
 	}
 }
