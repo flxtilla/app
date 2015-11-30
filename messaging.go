@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 )
 
 // A byte signal for App messaging.
@@ -60,16 +61,25 @@ func (m *Messaging) Emit(message string) {
 	m.Signals <- []byte(message)
 }
 
+var wg sync.WaitGroup
+
+func exq(q Queue, m string) {
+	q(m)
+	wg.Done()
+}
+
 // Send sends the message to the provided queue, with a fall through to Emit if
 // the queue does not exist.
 func (m *Messaging) Send(queue string, message string) {
 	q, ok := m.Queues[queue]
+	wg.Add(1)
 	if ok {
-		go q(message)
+		go exq(q, message) //q(message)
 	}
 	if !ok {
-		go m.Emit(message)
+		go exq(m.Emit, message) //m.Emit(message)
 	}
+	wg.Wait()
 }
 
 func (m Messaging) defaultQueues() map[string]Queue {

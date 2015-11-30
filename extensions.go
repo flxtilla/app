@@ -430,7 +430,7 @@ func setdata(c *ctx, key string, item interface{}) error {
 
 func storequeryfunc(a *App) func(*ctx, string) (*StoreItem, error) {
 	return func(c *ctx, key string) (*StoreItem, error) {
-		return a.Env.Store.query(key)
+		return a.Env.Store.Query(key)
 	}
 }
 

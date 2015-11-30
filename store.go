@@ -28,7 +28,7 @@ func defaultStore() Store {
 
 var NoItem = xrr.NewXrror("Store item (section: %s, key: %s) does not exist.").Out
 
-func (s Store) query(key string) (*StoreItem, error) {
+func (s Store) Query(key string) (*StoreItem, error) {
 	var sec, seckey string
 	base := strings.Split(key, "_")
 	if len(base) == 1 {
@@ -45,42 +45,42 @@ func (s Store) query(key string) (*StoreItem, error) {
 }
 
 func (s Store) String(key string) string {
-	if i, err := s.query(key); err == nil {
+	if i, err := s.Query(key); err == nil {
 		return i.String()
 	}
 	return ""
 }
 
 func (s Store) Bool(key string) bool {
-	if i, err := s.query(key); err == nil {
+	if i, err := s.Query(key); err == nil {
 		return i.Bool()
 	}
 	return false
 }
 
 func (s Store) Float(key string) float64 {
-	if i, err := s.query(key); err == nil {
+	if i, err := s.Query(key); err == nil {
 		return i.Float()
 	}
 	return 0.0
 }
 
 func (s Store) Int(key string) int {
-	if i, err := s.query(key); err == nil {
+	if i, err := s.Query(key); err == nil {
 		return i.Int()
 	}
 	return 0
 }
 
 func (s Store) Int64(key string) int64 {
-	if i, err := s.query(key); err == nil {
+	if i, err := s.Query(key); err == nil {
 		return i.Int64()
 	}
 	return -1
 }
 
 func (s Store) List(key string) []string {
-	if i, err := s.query(key); err == nil {
+	if i, err := s.Query(key); err == nil {
 		return i.List()
 	}
 	return nil

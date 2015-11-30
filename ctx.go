@@ -11,7 +11,7 @@ import (
 	"github.com/thrisp/flotilla/xrr"
 )
 
-// a Manage function is for managing application and handler context between
+// A Manage function is for taking application and handler context between
 // any number of routes, handlers, or application specific functions.
 type Manage func(Ctx)
 
@@ -65,7 +65,6 @@ func propagateCancel(p *context, child canceler) {
 	}
 	p.mu.Lock()
 	if p.err != nil {
-		// parent has already been canceled
 		child.cancel(false, p.err)
 	} else {
 		if p.children == nil {

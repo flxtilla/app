@@ -7,23 +7,6 @@ import (
 	"github.com/thrisp/flotilla/xrr"
 )
 
-type setupstate struct {
-	registered bool
-	deferred   []func()
-	held       []*Route
-}
-
-// Blueprint is a common grouping of Routes.
-type Blueprint struct {
-	*setupstate
-	app      *App
-	children []*Blueprint
-	Prefix   string
-	Routes
-	Managers []Manage
-	MakeCtx  MakeCtxFunc
-}
-
 // Blueprints returns a flat array of Blueprints attached to the App.
 func (a *App) Blueprints() []*Blueprint {
 	type IterC func(bs []*Blueprint, fn IterC)
@@ -94,6 +77,23 @@ func (a *App) Mount(point string, blueprints ...*Blueprint) error {
 	}
 	a.RegisterBlueprints(b...)
 	return nil
+}
+
+type setupstate struct {
+	registered bool
+	deferred   []func()
+	held       []*Route
+}
+
+// Blueprint is a common grouping of Routes.
+type Blueprint struct {
+	*setupstate
+	app      *App
+	children []*Blueprint
+	Prefix   string
+	Routes
+	Managers []Manage
+	MakeCtx  MakeCtxFunc
 }
 
 func (b *Blueprint) pathFor(path string) string {

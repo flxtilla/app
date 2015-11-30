@@ -6,9 +6,7 @@ import (
 	"reflect"
 )
 
-type (
-	TemplateData map[string]interface{}
-)
+type TemplateData map[string]interface{}
 
 func baseTemplateData(any interface{}) TemplateData {
 	if rcvd, ok := any.(map[string]interface{}); ok {
