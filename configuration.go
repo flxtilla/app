@@ -44,9 +44,13 @@ func runConf(a *App, cnf ...Configuration) error {
 
 func (a *App) Configure(cnf ...Configuration) error {
 	var err error
-	a.Configuration = append(a.Configuration, cnf...)
-	err = runConf(a, a.Configuration...)
-	err = runConf(a, a.Config.deferred...)
+	configuration := append(a.Configuration, cnf...)
+	err = runConf(a, configuration...)
+	if err != nil {
+		return err
+	}
+	deferred := a.Config.deferred
+	err = runConf(a, deferred...)
 	if err != nil {
 		return err
 	}
@@ -131,7 +135,7 @@ func UseStaticor(s Staticor) Configuration {
 	}
 }
 
-func WithTemplator(t Templator) Configuration {
+func UseTemplator(t Templator) Configuration {
 	return func(a *App) error {
 		a.Env.Templator = t
 		return nil

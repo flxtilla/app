@@ -15,7 +15,7 @@ var METHODS []string = []string{"GET", "POST", "PATCH", "DELETE", "PUT", "OPTION
 func notMethod(method string) string {
 	newmethod := METHODS[rand.Intn(len(METHODS))]
 	if newmethod == method {
-		notMethod(newmethod)
+		notMethod(method)
 	}
 	return newmethod
 }

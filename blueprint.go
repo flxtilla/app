@@ -55,8 +55,7 @@ func (a *App) ExistingBlueprint(prefix string) (*Blueprint, bool) {
 
 var AlreadyRegistered = xrr.NewXrror("only unregistered blueprints may be mounted; %s is already registered").Out
 
-// Mount attaches each provided Blueprint to the given string mount point, optionally
-// inheriting from and setting the app primary Blueprint as parent to the given Blueprints.
+// Mount attaches each provided Blueprint to the given string mount point.
 func (a *App) Mount(point string, blueprints ...*Blueprint) error {
 	var b []*Blueprint
 	for _, blueprint := range blueprints {

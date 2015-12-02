@@ -5,33 +5,12 @@ import (
 	"unicode"
 )
 
-const (
-	static   nodeType = 0
-	param    nodeType = 1
-	catchAll nodeType = 2
-)
+type Param struct {
+	Key   string
+	Value string
+}
 
-type (
-	Param struct {
-		Key   string
-		Value string
-	}
-
-	Params []Param
-
-	nodeType uint8
-
-	node struct {
-		path      string
-		wildChild bool
-		nType     nodeType
-		maxParams uint8
-		indices   []byte
-		children  []*node
-		rule      Rule
-		priority  uint32
-	}
-)
+type Params []Param
 
 func (ps Params) ByName(name string) string {
 	for i := range ps {
@@ -61,6 +40,25 @@ func countParams(path string) uint8 {
 		return 255
 	}
 	return uint8(n)
+}
+
+type nodeType uint8
+
+const (
+	static   nodeType = 0
+	param    nodeType = 1
+	catchAll nodeType = 2
+)
+
+type node struct {
+	path      string
+	wildChild bool
+	nType     nodeType
+	maxParams uint8
+	indices   []byte
+	children  []*node
+	rule      Rule
+	priority  uint32
 }
 
 func (n *node) incrementChildPrio(i int) int {

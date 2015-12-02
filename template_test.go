@@ -182,7 +182,7 @@ func TestTemplator(t *testing.T) {
 	a := testApp(
 		t,
 		"testExternalTemplator",
-		WithTemplator(ttr),
+		UseTemplator(ttr),
 	)
 	exp, _ := NewExpectation(
 		200,
