@@ -8,52 +8,62 @@ import (
 )
 
 type Result struct {
-	*Recorder
-	xrr.Xrroror
 	Code   int
 	Rule   Rule
 	Params Params
 	TSR    bool
+	xrr.Xrroror
+	Recorder
 }
 
 func NewResult(code int, rule Rule, params Params, tsr bool) *Result {
 	return &Result{
-		Recorder: newRecorder(),
-		Xrroror:  xrr.NewXrroror(),
 		Code:     code,
 		Rule:     rule,
 		Params:   params,
 		TSR:      tsr,
+		Xrroror:  xrr.NewXrroror(),
+		Recorder: newRecorder(),
 	}
 }
 
-type Recorder struct {
-	RStart     time.Time
-	RStop      time.Time
-	RLatency   time.Duration
-	RStatus    int
-	RMethod    string
-	RPath      string
-	RRequester string
+type Recorder interface {
+	PostProcess(*http.Request, int)
+	Record() *Recorded
 }
 
-func newRecorder() *Recorder {
-	return &Recorder{RStart: time.Now()}
+type Recorded struct {
+	Start, Stop             time.Time
+	Latency                 time.Duration
+	Status                  int
+	Method, Path, Requester string
 }
 
-func (r *Recorder) StopRecorder() {
-	r.RStop = time.Now()
+type recorder struct {
+	*Recorded
 }
 
-func (r *Recorder) Latency() time.Duration {
-	return r.RStop.Sub(r.RStart)
+func newRecorder() Recorder {
+	return &recorder{&Recorded{Start: time.Now()}}
 }
 
-func (r *Recorder) PostProcess(req *http.Request, withstatus int) {
-	r.StopRecorder()
-	r.RLatency = r.Latency()
-	r.RRequester = req.RemoteAddr
-	r.RMethod = req.Method
-	r.RPath = req.URL.Path
-	r.RStatus = withstatus
+func (r *recorder) stopRecorder() {
+	r.Stop = time.Now()
+}
+
+func (r *recorder) latency() time.Duration {
+	return r.Stop.Sub(r.Start)
+}
+
+func (r *recorder) Record() *Recorded {
+	return r.Recorded
+}
+
+func (r *recorder) PostProcess(req *http.Request, withstatus int) {
+	r.stopRecorder()
+	r.Latency = r.latency()
+	r.Requester = req.RemoteAddr
+	r.Method = req.Method
+	r.Path = req.URL.Path
+	r.Status = withstatus
 }

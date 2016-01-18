@@ -10,51 +10,29 @@ import (
 	"time"
 )
 
-var (
-	provides = make(map[string]Provider)
-)
+// SessionStore contains all data for one session process with specific id.
+type SessionStore interface {
+	Set(key, value interface{}) error     //set session value
+	Get(key interface{}) interface{}      //get session value
+	Delete(key interface{}) error         //delete session value
+	SessionID() string                    //back current sessionID
+	SessionRelease(w http.ResponseWriter) //release the resource & save data to provider & return the data
+	Flush() error                         //delete all data
+}
 
-type (
-	// SessionStore contains all data for one session process with specific id.
-	SessionStore interface {
-		Set(key, value interface{}) error     //set session value
-		Get(key interface{}) interface{}      //get session value
-		Delete(key interface{}) error         //delete session value
-		SessionID() string                    //back current sessionID
-		SessionRelease(w http.ResponseWriter) //release the resource & save data to provider & return the data
-		Flush() error                         //delete all data
-	}
+var provides = make(map[string]Provider)
 
-	// Provider contains global session methods and saved SessionStores.
-	// it can operate a SessionStore by its id.
-	Provider interface {
-		SessionInit(gclifetime int64, config string) error
-		SessionRead(sid string) (SessionStore, error)
-		SessionExist(sid string) bool
-		SessionRegenerate(oldsid, sid string) (SessionStore, error)
-		SessionDestroy(sid string) error
-		SessionAll() int //get all active session
-		SessionGC()
-	}
-
-	// Manager contains Provider and its configuration.
-	Manager struct {
-		provider Provider
-		config   *managerConfig
-	}
-
-	managerConfig struct {
-		CookieName      string `json:"cookieName"`
-		EnableSetCookie bool   `json:"enableSetCookie,omitempty"`
-		Gclifetime      int64  `json:"gclifetime"`
-		Maxlifetime     int64  `json:"maxLifetime"`
-		Secure          bool   `json:"secure"`
-		CookieLifeTime  int    `json:"cookieLifeTime"`
-		ProviderConfig  string `json:"providerConfig"`
-		Domain          string `json:"domain"`
-		SessionIdLength int64  `json:"sessionIdLength"`
-	}
-)
+// Provider contains global session methods and saved SessionStores.
+// it can operate a SessionStore by its id.
+type Provider interface {
+	SessionInit(gclifetime int64, config string) error
+	SessionRead(sid string) (SessionStore, error)
+	SessionExist(sid string) bool
+	SessionRegenerate(oldsid, sid string) (SessionStore, error)
+	SessionDestroy(sid string) error
+	SessionAll() int //get all active session
+	SessionGC()
+}
 
 // Register makes a session provide available by the provided name.
 // If Register is called twice with the same name or if driver is nil,
@@ -67,6 +45,24 @@ func Register(name string, provide Provider) {
 		panic("session: Register called twice for provider " + name)
 	}
 	provides[name] = provide
+}
+
+// Manager contains Provider and its configuration.
+type Manager struct {
+	provider Provider
+	config   *managerConfig
+}
+
+type managerConfig struct {
+	CookieName      string `json:"cookieName"`
+	EnableSetCookie bool   `json:"enableSetCookie,omitempty"`
+	Gclifetime      int64  `json:"gclifetime"`
+	Maxlifetime     int64  `json:"maxLifetime"`
+	Secure          bool   `json:"secure"`
+	CookieLifeTime  int    `json:"cookieLifeTime"`
+	ProviderConfig  string `json:"providerConfig"`
+	Domain          string `json:"domain"`
+	SessionIdLength int64  `json:"sessionIdLength"`
 }
 
 // Create new Manager with provider name and json config string
