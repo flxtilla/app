@@ -1,4 +1,4 @@
-package assets
+package asset
 
 import (
 	"bytes"
@@ -186,20 +186,23 @@ type Assets interface {
 	GetAsset(string) (http.File, error)
 	GetAssetByte(string) ([]byte, error)
 	SetAssets(...AssetFS)
-	AllAssets() Assets
-	Range() []AssetFS
+	ListAssetFS() []AssetFS
 }
 
 func New(af ...AssetFS) Assets {
-	a := make(assets, 0)
-	a.SetAssets(af...)
-	return a
+	as := &assets{
+		a: make([]AssetFS, 0),
+	}
+	as.SetAssets(af...)
+	return as
 }
 
-type assets []AssetFS
+type assets struct {
+	a []AssetFS
+}
 
-func (a assets) GetAsset(requested string) (http.File, error) {
-	for _, x := range a {
+func (a *assets) GetAsset(requested string) (http.File, error) {
+	for _, x := range a.a {
 		f, err := x.HttpAsset(requested)
 		if err == nil {
 			return f, nil
@@ -208,8 +211,8 @@ func (a assets) GetAsset(requested string) (http.File, error) {
 	return nil, AssetUnavailable(requested)
 }
 
-func (a assets) GetAssetByte(requested string) ([]byte, error) {
-	for _, x := range a {
+func (a *assets) GetAssetByte(requested string) ([]byte, error) {
+	for _, x := range a.a {
 		b, err := x.Asset(requested)
 		if err == nil {
 			return b, nil
@@ -218,14 +221,11 @@ func (a assets) GetAssetByte(requested string) ([]byte, error) {
 	return nil, AssetUnavailable(requested)
 }
 
-func (a assets) SetAssets(af ...AssetFS) {
-	a = append(a, af...)
+func (a *assets) SetAssets(af ...AssetFS) {
+	a.a = append(a.a, af...)
+	//spew.Dump(a, af)
 }
 
-func (a assets) AllAssets() Assets {
-	return a
-}
-
-func (a assets) Range() []AssetFS {
-	return a
+func (a *assets) ListAssetFS() []AssetFS {
+	return a.a
 }

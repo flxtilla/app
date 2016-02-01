@@ -2,18 +2,18 @@ package extension
 
 import "reflect"
 
-type Fxtension interface {
+type Extension interface {
 	Tag() string
 	Insert(...interface{})
 	Call(string, ...interface{}) (interface{}, error)
 	MustCall(string, ...interface{}) interface{}
 	SetExtensionFunctions(...Function)
-	Extend(...Fxtension)
+	Extend(...Extension)
 	All() []Function
 	Returns
 }
 
-func New(tag string, fns ...Function) Fxtension {
+func New(tag string, fns ...Function) Extension {
 	e := &extension{
 		tag:        tag,
 		extensions: make(map[string]reflect.Value),
@@ -86,7 +86,7 @@ func valueFunc(fn interface{}) reflect.Value {
 	return v
 }
 
-func (e *extension) Extend(extensions ...Fxtension) {
+func (e *extension) Extend(extensions ...Extension) {
 	for _, extension := range extensions {
 		e.SetExtensionFunctions(extension.All()...)
 	}

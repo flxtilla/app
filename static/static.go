@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/thrisp/flotilla/assets"
+	"github.com/thrisp/flotilla/asset"
 	"github.com/thrisp/flotilla/state"
 	"github.com/thrisp/flotilla/store"
 )
@@ -20,7 +20,7 @@ type static struct {
 	Staticr
 }
 
-func New(s store.Store, a assets.Assets) Static {
+func New(s store.Store, a asset.Assets) Static {
 	return &static{
 		Staticr: defaultStaticr(s, a),
 	}
@@ -31,33 +31,46 @@ func (s *static) SwapStaticr(st Staticr) {
 }
 
 type Staticr interface {
-	//assets.Assets
-	//store.Store
 	StaticDirs(...string) []string
 	Exists(state.State, string) bool
-	ManageFn(state.State)
+	StaticManage(state.State)
 }
 
 type staticr struct {
 	s store.Store
-	a assets.Assets
+	a asset.Assets
 }
 
-func defaultStaticr(s store.Store, a assets.Assets) Staticr {
+func defaultStaticr(s store.Store, a asset.Assets) Staticr {
 	return &staticr{
 		s: s,
 		a: a,
 	}
 }
 
+func doAdd(s string, ss []string) []string {
+	if isAppendable(s, ss) {
+		ss = append(ss, s)
+	}
+	return ss
+}
+
+func isAppendable(s string, ss []string) bool {
+	for _, x := range ss {
+		if x == s {
+			return false
+		}
+	}
+	return true
+}
+
 func (st *staticr) StaticDirs(added ...string) []string {
 	dirs := st.s.List("STATIC_DIRECTORIES")
 	if added != nil {
-		newDirs := dirs
-		for _, _ = range dirs {
-			//newDirs = doAdd(dir, newDirs)
+		for _, add := range added {
+			dirs = doAdd(add, dirs)
 		}
-		st.s.Add("STATIC_DIRECTORIES", strings.Join(newDirs, ","))
+		st.s.Add("STATIC_DIRECTORIES", strings.Join(dirs, ","))
 	}
 	return dirs
 }
@@ -95,7 +108,7 @@ func (st *staticr) Exists(s state.State, requested string) bool {
 	return exists
 }
 
-func (st *staticr) ManageFn(s state.State) {
+func (st *staticr) StaticManage(s state.State) {
 	if !st.Exists(s, requestedFile(s)) {
 		abortStatic(s)
 	} else {

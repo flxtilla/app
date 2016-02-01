@@ -1,11 +1,13 @@
 package state
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/thrisp/flotilla/engine"
 	"github.com/thrisp/flotilla/extension"
 	"github.com/thrisp/flotilla/flash"
+	"github.com/thrisp/flotilla/log"
 	"github.com/thrisp/flotilla/session"
 	"github.com/thrisp/flotilla/xrr"
 )
@@ -20,10 +22,12 @@ type Make func(
 type Manage func(State)
 
 type State interface {
+	engine.Resulter
 	flash.Flasher
-	extension.Fxtension
+	extension.Extension
 	xrr.Xrroror
 	session.SessionStore
+	log.Logger
 	Handlers
 	Request() *http.Request
 	RWriter() ResponseWriter
@@ -60,29 +64,31 @@ func (h *handlers) Bounce(fn Manage) {
 
 type state struct {
 	*engine.Result
-	//*context
+	*context
 	*handlers
 	xrr.Xrroror
-	extension.Fxtension
+	extension.Extension
 	session.SessionStore
 	rw      responseWriter
 	RW      ResponseWriter
 	request *http.Request
 	Data    map[string]interface{}
+	log.Logger
 	flash.Flasher
 }
 
 func empty() *state {
 	return &state{
 		handlers: defaultHandlers(),
-		Xrroror:  xrr.NewXrroror(),
 	}
 }
 
-func New(ext extension.Fxtension, rs *engine.Result) *state {
+func New(ext extension.Extension, rs *engine.Result, lg log.Logger) *state {
 	s := empty()
+	s.Logger = lg
 	s.Result = rs
-	s.Fxtension = ext
+	s.Xrroror = rs.Xrroror
+	s.Extension = ext
 	s.RW = &s.rw
 	s.Flasher = flash.New()
 	return s
@@ -104,16 +110,25 @@ func release(s State) {
 	}
 }
 
+func LogFmt(s *state) string {
+	r := s.Record()
+	return fmt.Sprintf("| %3d | %12v | %s |%-7s %s",
+		r.Status,
+		r.Latency,
+		r.Requester,
+		r.Method,
+		r.Path,
+	)
+}
+
 func (s *state) Run() {
 	s.Push(release)
 	s.Next()
 	for _, fn := range s.deferred {
 		fn(s)
 	}
-	//if !ModeIs(s, "production") {
 	s.PostProcess(s.request, s.RW.Status())
-	//s.Call("out", LogFmt(s))
-	//}
+	s.Logger.Printf(LogFmt(s))
 }
 
 func (s *state) Rerun(managers ...Manage) {
@@ -134,21 +149,22 @@ func (s *state) Next() {
 
 func (s *state) Cancel() {
 	s.PostProcess(s.request, s.RW.Status())
-	//c.context.cancel(true, Canceled)
+	s.context.cancel(true, Canceled)
 }
 
 func (s *state) Reset(rq *http.Request, rw http.ResponseWriter, m []Manage) {
 	s.request = rq
 	s.rw.reset(rw)
-	//c.context = &context{done: make(chan struct{}), value: c}
+	s.context = &context{done: make(chan struct{}), value: s}
 	s.handlers = defaultHandlers()
 	s.managers = m
+	s.Insert(s)
 }
 
 func (s *state) Replicate() State {
-	//child := &context{parent: c.context, done: make(chan struct{}), value: c}
-	//propagateCancel(c.context, child)
+	child := &context{parent: s.context, done: make(chan struct{}), value: s}
+	propagateCancel(s.context, child)
 	var rcopy state = *s
-	//rcopy.context = child
+	rcopy.context = child
 	return &rcopy
 }

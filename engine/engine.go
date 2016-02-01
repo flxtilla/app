@@ -6,7 +6,6 @@ package engine
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/thrisp/flotilla/xrr"
 )
@@ -46,6 +45,10 @@ func DefaultEngine(status Rule) *engine {
 func (e *engine) Handle(method string, path string, r Rule) {
 	if method != "STATUS" && path[0] != '/' {
 		panic("path must begin with '/'")
+	}
+
+	if method == "STATUS" && path == "DEFAULT" {
+		e.StatusRule = r
 	}
 
 	if e.trees == nil {
@@ -103,15 +106,19 @@ func (e *engine) lookup(method, path string) *Result {
 		}
 		handle, _, _ := e.trees[method].getValue(path)
 		if handle != nil {
-			return e.status(405)
+			return e.status(statusPath(405, path))
 		}
 	}
-	return e.status(404)
+	return e.status(statusPath(404, path))
 }
 
-func (e *engine) status(code int) *Result {
+func statusPath(code int, path string) (int, string) {
+	return code, fmt.Sprintf("/%d/%s", code, path)
+}
+
+func (e *engine) status(code int, path string) *Result {
 	if root := e.trees["STATUS"]; root != nil {
-		if rule, params, tsr := root.getValue(strconv.Itoa(code)); rule != nil {
+		if rule, params, tsr := root.getValue(path); rule != nil {
 			return NewResult(code, rule, params, tsr)
 		}
 	}
@@ -119,8 +126,8 @@ func (e *engine) status(code int) *Result {
 }
 
 func defaultStatusRule(rw http.ResponseWriter, rq *http.Request, rs *Result) {
-	rw.WriteHeader(rs.Code)
-	rw.Write([]byte(fmt.Sprintf("%d %s", rs.Code, http.StatusText(rs.Code))))
+	rw.WriteHeader(rs.Code())
+	rw.Write([]byte(fmt.Sprintf("%d %s", rs.Code, http.StatusText(rs.Code()))))
 }
 
 func (e *engine) defaultStatus(code int) Rule {
@@ -132,7 +139,7 @@ func (e *engine) defaultStatus(code int) Rule {
 
 func (e *engine) rcvr(rw http.ResponseWriter, rq *http.Request) {
 	if rcv := recover(); rcv != nil {
-		s := e.status(500)
+		s := e.status(500, rq.URL.Path)
 		s.Xrror("%s", xrr.ErrorTypePanic, xrr.Stack(3), rcv)
 		s.Rule(rw, rq, s)
 	}

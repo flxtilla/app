@@ -1,24 +1,44 @@
-package blueprint
+package blueprint_test
 
-/*
 import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/thrisp/flotilla/app"
+	"github.com/thrisp/flotilla/blueprint"
+	"github.com/thrisp/flotilla/route"
+	"github.com/thrisp/flotilla/state"
+	"github.com/thrisp/flotilla/txst"
 )
 
-func testBlueprint(method string, t *testing.T) {
+func AppForTest(t *testing.T, name string, conf ...app.ConfigurationFn) *app.App {
+	conf = append(conf, app.Mode("Testing", true))
+	a := app.New(name, conf...)
+	err := a.Configure()
+	if err != nil {
+		t.Errorf("Error in app configuration: %s", err.Error())
+	}
+	return a
+}
+
+func testBlueprint(method string, a *app.App, b blueprint.Blueprint, t *testing.T) {
 	var passed bool
 	var passone bool
 	var passmultiple []bool
 	var inc int
 	var incis bool
 
-	a := testApp(t, "testBlueprint")
+	bm0 := func(s state.State) {
+		if inc == 0 {
+			incis = true
+			inc++
+		} else {
+			incis = false
+		}
+	}
 
-	b := NewBlueprint("/blueprint")
-
-	bm := func(c Ctx) {
+	bm1 := func(s state.State) {
 		if inc == 1 {
 			incis = true
 			inc++
@@ -29,16 +49,7 @@ func testBlueprint(method string, t *testing.T) {
 		passmultiple = append(passmultiple, true)
 	}
 
-	bm0 := func(c Ctx) {
-		if inc == 0 {
-			incis = true
-			inc++
-		} else {
-			incis = false
-		}
-	}
-
-	bm1 := func(c Ctx) {
+	bm2 := func(s state.State) {
 		if inc == 2 {
 			incis = true
 			inc++
@@ -47,23 +58,23 @@ func testBlueprint(method string, t *testing.T) {
 		}
 	}
 
-	b.Use(bm, bm, bm)
-
 	b.UseAt(0, bm0)
 
-	b.UseAt(5, bm1)
+	b.Use(bm1, bm1, bm1)
 
-	m := func(c Ctx) { passed = true }
+	b.UseAt(5, bm2)
+
+	m := func(s state.State) { passed = true }
 
 	reflect.ValueOf(b).MethodByName(method).Call([]reflect.Value{reflect.ValueOf("/test_blueprint"), reflect.ValueOf(m)})
 
-	a.RegisterBlueprints(b)
+	a.Attach(b)
 
 	a.Configure()
 
 	expected := "/blueprint/test_blueprint"
 
-	ZeroExpectationPerformer(t, a, 200, method, expected).Perform()
+	txst.ZeroExpectationPerformer(t, a, 200, method, expected).Perform()
 
 	if passed != true {
 		t.Errorf("%s blueprint route: %s was not invoked.", method, expected)
@@ -74,52 +85,98 @@ func testBlueprint(method string, t *testing.T) {
 	}
 
 	if passone != true {
-		t.Errorf("Blueprint level Manage %#v was not invoked: %t.", bm, passone)
+		t.Errorf("Blueprint level Manage %#v was not invoked: %t.", bm1, passone)
 	}
 
 	if len(passmultiple) > 1 {
-		t.Errorf("Blueprint level Manage %#v was duplicated.", bm)
+		t.Errorf("Blueprint level Manage %#v was duplicated.", bm1)
 	}
 
 	if passmultiple[0] != true {
-		t.Errorf("Blueprint level Manage %#v was used in error.", bm)
-	}
-
-}
-
-func TestBlueprint(t *testing.T) {
-	for _, m := range METHODS {
-		testBlueprint(m, t)
+		t.Errorf("Blueprint level Manage %#v was used in error.", bm1)
 	}
 }
 
-func registerBlueprints(method string, t *testing.T) {
+func TestStandAloneBlueprint(t *testing.T) {
+	for _, m := range txst.METHODS {
+		a := AppForTest(t, "testStandAoneBlueprint")
+
+		b := blueprint.New("/blueprint", blueprint.NewHandles(a.Handle), blueprint.NewMakes(a.StateFunction(a)))
+
+		testBlueprint(m, a, b, t)
+	}
+}
+
+func TestAppSpawnedBlueprint(t *testing.T) {
+	for _, m := range txst.METHODS {
+		a := AppForTest(t, "testAppSpawnedBlueprint")
+
+		b := a.New("/blueprint")
+
+		testBlueprint(m, a, b, t)
+	}
+}
+
+func attachBlueprints(method string, t *testing.T) {
 	var passed0, passed1, passed2 bool
-	a := testApp(t, "testRegisterBlueprints")
-	m0 := func(c Ctx) { passed0 = true }
-	m1 := func(c Ctx) { passed1 = true }
-	m2 := func(c Ctx) { passed2 = true }
-	b0 := NewBlueprint("/")
-	zero := NewRoute(defaultRouteConf(method, "/zero/:param", []Manage{m0}))
+
+	bm0 := func(c state.State) { passed0 = true }
+
+	bm1 := func(c state.State) { passed1 = true }
+
+	bm2 := func(c state.State) { passed2 = true }
+
+	a := AppForTest(t, "testAttachBlueprints")
+
+	b0 := blueprint.New("/", blueprint.NewHandles(a.Handle), blueprint.NewMakes(a.StateFunction(a)))
+
+	zero := route.New(route.DefaultRouteConf(method, "/zero/:param", []state.Manage{bm0}))
+
 	b0.Manage(zero)
-	b1 := NewBlueprint("/blueprint")
-	one := NewRoute(defaultRouteConf(method, "/route/one", []Manage{m1}))
+
+	b1 := a.New("/blueprint")
+
+	one := route.New(route.DefaultRouteConf(method, "/route/one", []state.Manage{bm1}))
+
 	b1.Manage(one)
-	b2 := NewBlueprint("/blueprint")
-	two := NewRoute(defaultRouteConf(method, "/route/two", []Manage{m2}))
+
+	b2 := blueprint.New("/blueprint", blueprint.NewHandles(a.Handle), blueprint.NewMakes(a.StateFunction(a)))
+
+	two := route.New(route.DefaultRouteConf(method, "/route/two", []state.Manage{bm2}))
+
 	b2.Manage(two)
-	a.RegisterBlueprints(b0, b1, b2)
+
+	a.Attach(b0, b1, b2)
+
 	a.Configure()
-	ZeroExpectationPerformer(t, a, 200, method, "/zero/test").Perform()
-	ZeroExpectationPerformer(t, a, 200, method, "/blueprint/route/one").Perform()
-	ZeroExpectationPerformer(t, a, 200, method, "/blueprint/route/two").Perform()
+
+	txst.ZeroExpectationPerformer(t, a, 200, method, "/zero/test").Perform()
+	txst.ZeroExpectationPerformer(t, a, 200, method, "/blueprint/route/one").Perform()
+	txst.ZeroExpectationPerformer(t, a, 200, method, "/blueprint/route/two").Perform()
+
 	if passed0 != true && passed1 != true && passed2 != true {
 		t.Errorf("Blueprint routes were not merged properly.")
 	}
+
 	var paths []string
-	for _, rt := range a.Routes() {
-		paths = append(paths, rt.Path)
+
+	bps := a.ListBlueprints()
+
+	for _, bp := range bps {
+		for _, rt := range bp.All() {
+			paths = append(paths, rt.Path)
+		}
 	}
+
+	existsIn := func(s string, l []string) bool {
+		for _, x := range l {
+			if s == x {
+				return true
+			}
+		}
+		return false
+	}
+
 	for _, expected := range []string{"/zero/:param", "/blueprint/route/one", "/blueprint/route/two"} {
 		if !existsIn(expected, paths) {
 			t.Errorf("Expected route with path %s was not found in added routes.", expected)
@@ -127,45 +184,45 @@ func registerBlueprints(method string, t *testing.T) {
 	}
 }
 
-func TestBlueprintRegister(t *testing.T) {
-	for _, m := range METHODS {
-		registerBlueprints(m, t)
+func TestBlueprintAttach(t *testing.T) {
+	for _, m := range txst.METHODS {
+		attachBlueprints(m, t)
 	}
 }
 
 func chainBlueprints(method string, t *testing.T) {
 	var x1, x2, x3 bool
 	var y int
-	a := testApp(t, "testChainedBlueprints")
-	a.Use(func(c Ctx) {
+	a := AppForTest(t, "testChainedBlueprints")
+	a.Use(func(c state.State) {
 		x1 = true
 		y = 1
 	})
-	b := a.NewBlueprint("/blueprintone")
-	b.Use(func(c Ctx) {
+	b := a.New("/blueprintone")
+	b.Use(func(c state.State) {
 		if x1 {
 			x2 = true
 			y = 2
 		}
 	})
-	c := b.NewBlueprint("/blueprinttwo")
-	third := NewRoute(defaultRouteConf(method, "/third", []Manage{func(c Ctx) {}}))
+	c := b.New("/blueprinttwo")
+	third := route.New(route.DefaultRouteConf(method, "/third", []state.Manage{func(c state.State) {}}))
 	c.Manage(third)
-	c.Use(func(c Ctx) {
+	c.Use(func(c state.State) {
 		if x1 && x2 {
 			x3 = true
 			y = 3
 		}
 	})
 	a.Configure()
-	ZeroExpectationPerformer(t, a, 200, method, "/blueprintone/blueprinttwo/third").Perform()
+	txst.ZeroExpectationPerformer(t, a, 200, method, "/blueprintone/blueprinttwo/third").Perform()
 	if !x1 && !x2 && !x3 && !(y == 3) {
 		t.Errorf("Blueprint Manage chain error, chained test blueprint did not execute expected Manage.")
 	}
 }
 
 func TestChainBlueprints(t *testing.T) {
-	for _, m := range METHODS {
+	for _, m := range txst.METHODS {
 		chainBlueprints(m, t)
 	}
 }
@@ -173,15 +230,15 @@ func TestChainBlueprints(t *testing.T) {
 func mountBlueprint(method string, t *testing.T) {
 	var passed bool
 
-	a := testApp(t, "testMountBlueprint")
+	a := AppForTest(t, "testMountBlueprint")
 
-	b := NewBlueprint("/mount")
+	b := blueprint.New("/mount", blueprint.NewHandles(a.Handle), blueprint.NewMakes(a.StateFunction(a)))
 
-	m := func(c Ctx) { passed = true }
+	m := func(c state.State) { passed = true }
 
-	one := NewRoute(defaultRouteConf(method, "/mounted/1", []Manage{m}))
+	one := route.New(route.DefaultRouteConf(method, "/mounted/1", []state.Manage{m}))
 
-	two := NewRoute(defaultRouteConf(method, "/mounted/2", []Manage{m}))
+	two := route.New(route.DefaultRouteConf(method, "/mounted/2", []state.Manage{m}))
 
 	b.Manage(one)
 
@@ -191,7 +248,7 @@ func mountBlueprint(method string, t *testing.T) {
 
 	a.Mount("/test/two", b)
 
-	a.RegisterBlueprints(b)
+	a.Attach(b)
 
 	a.Configure()
 
@@ -201,8 +258,8 @@ func mountBlueprint(method string, t *testing.T) {
 		t.Errorf("mounting a registered blueprint return no error")
 	}
 
-	perform := func(expected string, method string, app *App) {
-		ZeroExpectationPerformer(t, app, 200, method, expected).Perform()
+	perform := func(expected string, method string, app *app.App) {
+		txst.ZeroExpectationPerformer(t, app, 200, method, expected).Perform()
 
 		if passed == false {
 			t.Errorf(fmt.Sprintf("%s blueprint route: %s was not invoked.", method, expected))
@@ -220,8 +277,7 @@ func mountBlueprint(method string, t *testing.T) {
 }
 
 func TestMountBlueprint(t *testing.T) {
-	for _, m := range METHODS {
+	for _, m := range txst.METHODS {
 		mountBlueprint(m, t)
 	}
 }
-*/

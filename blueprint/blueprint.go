@@ -1,15 +1,21 @@
 package blueprint
 
 import (
+	"fmt"
 	"path/filepath"
 	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/thrisp/flotilla/engine"
 	"github.com/thrisp/flotilla/route"
 	"github.com/thrisp/flotilla/state"
+	"github.com/thrisp/flotilla/static"
+	"github.com/thrisp/flotilla/status"
 	//"github.com/thrisp/flotilla/xrr"
 )
 
+// Blueprint is an interface for common route bundling in a flotilla app.
 type Blueprint interface {
 	SetupState
 	Handles
@@ -24,6 +30,7 @@ type Blueprint interface {
 	Parent(...Blueprint)
 	Descendents() []Blueprint
 	MethodManager
+	status.Statusr
 }
 
 type SetupState interface {
@@ -101,9 +108,11 @@ type blueprint struct {
 	route.Routes
 	managers []state.Manage
 	MethodManager
+	status.Statusr
 }
 
-// New returns a new Blueprint with the provided string prefix and HandleFn.
+// New returns a new Blueprint with the provided string prefix, Handles & Makes
+// interfaces.
 func New(prefix string, h Handles, m Makes) Blueprint {
 	return newBlueprint(prefix, h, m)
 }
@@ -115,6 +124,7 @@ func newBlueprint(prefix string, h Handles, m Makes) *blueprint {
 		Makes:      m,
 		prefix:     prefix,
 		Routes:     route.NewRoutes(),
+		Statusr:    status.New(m),
 	}
 }
 
@@ -141,14 +151,17 @@ func (b *blueprint) pathFor(path string) string {
 }
 
 func combineManagers(b Blueprint, managers []state.Manage) []state.Manage {
-	s := len(b.Managers()) + len(managers)
-	h := make([]state.Manage, 0, s)
+	h := make([]state.Manage, 0)
 	h = append(h, b.Managers()...)
-	h = append(h, managers...)
+	for _, manage := range managers {
+		if !manageExists(h, manage) {
+			h = append(h, manage)
+		}
+	}
 	return h
 }
 
-// *blueprint.New returns a new Blueprint as a child of the parent Blueprint.
+// New returns a new Blueprint as a child of the parent Blueprint.
 func (b *blueprint) New(component string, managers ...state.Manage) Blueprint {
 	prefix := b.pathFor(component)
 	newb := newBlueprint(prefix, b.Handles, b.Makes)
@@ -170,9 +183,9 @@ func equalFunc(a, b interface{}) bool {
 	return av.InterfaceData() == bv.InterfaceData()
 }
 
-func (b *blueprint) manageExists(outside state.Manage) bool {
-	for _, inside := range b.managers {
-		if equalFunc(inside, outside) {
+func manageExists(inside []state.Manage, outside state.Manage) bool {
+	for _, fn := range inside {
+		if equalFunc(fn, outside) {
 			return true
 		}
 	}
@@ -181,7 +194,7 @@ func (b *blueprint) manageExists(outside state.Manage) bool {
 
 func (b *blueprint) Use(managers ...state.Manage) {
 	for _, manage := range managers {
-		if !b.manageExists(manage) {
+		if !manageExists(b.managers, manage) {
 			b.managers = append(b.managers, manage)
 		}
 	}
@@ -196,7 +209,7 @@ func (b *blueprint) UseAt(index int, managers ...state.Manage) {
 	var newh []state.Manage
 
 	for _, manage := range managers {
-		if !b.manageExists(manage) {
+		if !manageExists(b.managers, manage) {
 			newh = append(newh, manage)
 		}
 	}
@@ -225,10 +238,12 @@ func (b *blueprint) push(register func(), rt *route.Route) {
 	}
 }
 
+// Parent will add the provided blueprints as descendents of the Blueprint.
 func (b *blueprint) Parent(bs ...Blueprint) {
 	b.descendents = append(b.descendents, bs...)
 }
 
+// Descendents returns an array of Blueprint as direct decendents of the calling Blueprint.
 func (b *blueprint) Descendents() []Blueprint {
 	return b.descendents
 }
@@ -237,9 +252,18 @@ func (b *blueprint) Managers() []state.Manage {
 	return b.managers
 }
 
+func reManage(rt *route.Route, b Blueprint) {
+	var ms []state.Manage
+	existing := rt.Managers
+	rt.Managers = nil
+	ms = append(ms, combineManagers(b, existing)...)
+	rt.Managers = ms
+}
+
+//
 func registerRouteConf(b *blueprint) route.RouteConf {
 	return func(rt *route.Route) error {
-		rt.Managers = combineManagers(b, rt.Managers)
+		reManage(rt, b)
 		rt.Path = b.pathFor(rt.Base)
 		rt.Registered = true
 		rt.Makes = b.Makes
@@ -247,6 +271,7 @@ func registerRouteConf(b *blueprint) route.RouteConf {
 	}
 }
 
+//
 type MethodManager interface {
 	Manage(rt *route.Route)
 	GET(string, ...state.Manage)
@@ -256,8 +281,8 @@ type MethodManager interface {
 	PUT(string, ...state.Manage)
 	OPTIONS(string, ...state.Manage)
 	HEAD(string, ...state.Manage)
-	//STATIC(string)
-	//STATUS(int, ...state.Manage)
+	STATIC(static.Static, string, ...string)
+	STATUS(int, ...state.Manage)
 }
 
 // Manage adds a route to the Blueprint.
@@ -265,6 +290,7 @@ func (b *blueprint) Manage(rt *route.Route) {
 	register := func() {
 		rt.Configure(registerRouteConf(b))
 		if !b.Exists(rt) {
+			rt.Managers = append([]state.Manage{b.statusExtension}, rt.Managers...)
 			b.add(rt)
 			b.Handling(rt.Method, rt.Path, rt.Rule)
 		}
@@ -272,52 +298,84 @@ func (b *blueprint) Manage(rt *route.Route) {
 	b.push(register, rt)
 }
 
+//
 func (b *blueprint) GET(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("GET", path, managers)))
 }
 
+//
 func (b *blueprint) POST(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("POST", path, managers)))
 }
 
+//
 func (b *blueprint) DELETE(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("DELETE", path, managers)))
 }
 
+//
 func (b *blueprint) PATCH(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("PATCH", path, managers)))
 }
 
+//
 func (b *blueprint) PUT(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("PUT", path, managers)))
 }
 
+//
 func (b *blueprint) OPTIONS(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("OPTIONS", path, managers)))
 }
 
+//
 func (b *blueprint) HEAD(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("HEAD", path, managers)))
 }
 
-//func (b *blueprint) STATIC(path string) {
-//b.push(func() { /*b.app.StaticDirs(dropTrailing(path, "*filepath"))*/ }, nil)
-//register := func() {
-//	rt := route.New(route.StaticRouteConf("GET", path, []state.Manage{b.StaticManage()}))
-//	rt.Configure(registerRouteConf(b))
-//	b.add(rt)
-//	b.HandleFn()(rt.Method, rt.Path, rt.Rule)
-//}
-//b.push(register, nil)
-//}
+func dropTrailing(path string, trailing string) string {
+	if fp := strings.Split(path, "/"); fp[len(fp)-1] == trailing {
+		return strings.Join(fp[0:len(fp)-1], "/")
+	}
+	return path
+}
 
-//func (b *blueprint) STATUS(code int, managers ...state.Manage) {
-//b.push(func() {
-//b.HandleFn()(
-//	"STATUS",
-//	strconv.Itoa(code),
-//	b.StatusRule(),
-//) //(b.app, code, managers...))
-//},
-//	nil)
-//}
+//
+func (b *blueprint) STATIC(s static.Static, path string, dirs ...string) {
+	if len(dirs) > 0 {
+		for _, dir := range dirs {
+			b.push(func() { s.StaticDirs(dropTrailing(dir, "*filepath")) }, nil)
+		}
+	}
+	register := func() {
+		rt := route.New(route.StaticRouteConf("GET", path, []state.Manage{s.StaticManage}))
+		rt.Configure(registerRouteConf(b))
+		b.add(rt)
+		b.Handling(rt.Method, rt.Path, rt.Rule)
+	}
+	b.push(register, nil)
+}
+
+func formatStatusPath(code, prefix string) string {
+	if prefix == "/" {
+		return fmt.Sprintf("/%s/*filepath", code)
+	}
+	return fmt.Sprintf("/%s/%s/*filepath", code, prefix)
+}
+
+func (b *blueprint) statusExtension(s state.State) {
+	s.Extend(b.StateStatusExtension())
+}
+
+//
+func (b *blueprint) STATUS(code int, managers ...state.Manage) {
+	b.SetRawStatus(code, managers...)
+	b.push(func() {
+		b.Handling(
+			"STATUS",
+			formatStatusPath(strconv.Itoa(code), b.prefix),
+			b.StatusRule(),
+		)
+	},
+		nil)
+}

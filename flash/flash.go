@@ -1,22 +1,14 @@
 package flash
 
 import (
-	//"github.com/thrisp/flotilla/extension"
 	"github.com/thrisp/flotilla/session"
 )
-
-//var flashFns = []extension.Function{
-//	mkFunction("flasher", flshr),
-//	mkFunction("flash", flash),
-//}
-
-//var FlashFxtension extension.Fxtension = extension.New("Flash_Fxtension", flashFns...)
 
 type Flashes map[string][]string
 
 type Flasher interface {
-	Write(string) []string
-	WriteAll() Flashes
+	Flashes(string) []string
+	FlashesAll() Flashes
 	In(session.SessionStore) bool
 	Out(session.SessionStore) bool
 	Flash(string, string)
@@ -31,7 +23,7 @@ type flasher struct {
 	flashes  Flashes
 }
 
-func (f *flasher) Write(key string) []string {
+func (f *flasher) Flashes(key string) []string {
 	if ret, ok := f.flashes[key]; ok {
 		f.readOnce = true
 		return ret
@@ -39,7 +31,7 @@ func (f *flasher) Write(key string) []string {
 	return nil
 }
 
-func (f *flasher) WriteAll() Flashes {
+func (f *flasher) FlashesAll() Flashes {
 	ret := make(Flashes)
 	for k, v := range f.flashes {
 		ret[k] = v
@@ -72,17 +64,3 @@ func (f *flasher) Flash(key, value string) {
 	}
 	f.flashes[key] = append(f.flashes[key], value)
 }
-
-//func Flshr(c Ctx) Flasher {
-//	fl, _ := c.Call("flasher")
-//	return fl.(Flasher)
-//}
-
-//func flshr(c *ctx) (Flasher, error) {
-//	return c.Flasher, nil
-//}
-
-//func flash(c *ctx, category, value string) error {
-//	c.Flasher.Flash(category, value)
-//	return nil
-//}

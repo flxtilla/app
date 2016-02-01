@@ -2,40 +2,76 @@ package template
 
 import (
 	"io"
-	"reflect"
+	"strings"
 
 	"github.com/thrisp/djinn"
-	"github.com/thrisp/flotilla/assets"
+	"github.com/thrisp/flotilla/asset"
+	"github.com/thrisp/flotilla/state"
 	"github.com/thrisp/flotilla/store"
 	"github.com/thrisp/flotilla/xrr"
 )
 
 type Templatr interface {
-	Render(io.Writer, string, interface{}) error
+	TemplateDirs(...string) []string
 	ListTemplates() []string
 	AddTemplateFunctions(fns map[string]interface{}) error
 	SetTemplateFunctions()
-	AddContextProcessors(fns map[string]interface{})
+	Render(io.Writer, string, interface{}) error
+	RenderTemplate(state.State, string, interface{}) error
 }
 
 type templatr struct {
 	*djinn.Djinn
 	s store.Store
-	a assets.Assets
+	a asset.Assets
 	*functions
-	*processors
 }
 
-func DefaultTemplatr(s store.Store, a assets.Assets) Templatr {
+func DefaultTemplatr(s store.Store, a asset.Assets) Templatr {
 	t := &templatr{
-		Djinn:      djinn.Empty(),
-		s:          s,
-		a:          a,
-		processors: &processors{},
+		Djinn: djinn.Empty(),
+		s:     s,
+		a:     a,
 	}
 	t.functions = &functions{t, false, nil}
 	t.SetConf(djinn.Loaders(newLoader(t)))
 	return t
+}
+
+func doAdd(s string, ss []string) []string {
+	if isAppendable(s, ss) {
+		ss = append(ss, s)
+	}
+	return ss
+}
+
+func isAppendable(s string, ss []string) bool {
+	for _, x := range ss {
+		if x == s {
+			return false
+		}
+	}
+	return true
+}
+
+func (t *templatr) TemplateDirs(added ...string) []string {
+	dirs := t.s.List("TEMPLATE_DIRECTORIES")
+	if added != nil {
+		for _, add := range added {
+			dirs = doAdd(add, dirs)
+		}
+		t.s.Add("TEMPLATE_DIRECTORIES", strings.Join(dirs, ","))
+	}
+	return dirs
+}
+
+func (t *templatr) ListTemplates() []string {
+	var ret []string
+	for _, l := range t.Djinn.Loaders {
+		ts := l.ListTemplates()
+		ret = append(ret, ts...)
+	}
+	return ret
 }
 
 type functions struct {
@@ -68,28 +104,10 @@ func (f *functions) AddTemplateFunctions(fns map[string]interface{}) error {
 	return AlreadySet
 }
 
-type processors struct {
-	contextProcessors map[string]reflect.Value
-}
-
-func addContextProcessor(p *processors, name string, fn interface{}) {
-	if p.contextProcessors == nil {
-		p.contextProcessors = make(map[string]reflect.Value)
-	}
-	p.contextProcessors[name] = valueFunc(fn)
-}
-
-func (p *processors) AddContextProcessors(fns map[string]interface{}) {
-	for k, v := range fns {
-		addContextProcessor(p, k, v)
-	}
-}
-
-func (t *templatr) ListTemplates() []string {
-	var ret []string
-	for _, l := range t.Djinn.Loaders {
-		ts := l.ListTemplates()
-		ret = append(ret, ts...)
-	}
-	return ret
+func (t *templatr) RenderTemplate(s state.State, template string, data interface{}) error {
+	s.Push(func(ps state.State) {
+		td := NewTemplateData(ps, data)
+		t.Render(ps.RWriter(), template, td)
+	})
+	return nil
 }

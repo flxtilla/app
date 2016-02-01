@@ -1,13 +1,19 @@
 package state
 
-/*
+import (
+	"sync"
+	"time"
+
+	"github.com/thrisp/flotilla/xrr"
+)
+
 type context struct {
 	parent   *context
 	mu       sync.Mutex
 	children map[canceler]bool
 	done     chan struct{}
 	err      error
-	value    *session
+	value    *state
 }
 
 type canceler interface {
@@ -15,7 +21,7 @@ type canceler interface {
 	Done() <-chan struct{}
 }
 
-//var Canceled = xrr.NewXrror("flotilla.Session canceled")
+var Canceled = xrr.NewXrror("flotilla.State canceled")
 
 func propagateCancel(p *context, child canceler) {
 	if p.Done() == nil {
@@ -53,7 +59,7 @@ func (c *context) Value(key interface{}) interface{} {
 
 func (c *context) cancel(removeFromParent bool, err error) {
 	if err == nil {
-		panic("Session.context: internal error: missing cancel error")
+		panic("State.context: internal error: missing cancel error")
 	}
 	c.mu.Lock()
 	c.err = err
@@ -70,4 +76,3 @@ func (c *context) cancel(removeFromParent bool, err error) {
 		}
 	}
 }
-*/

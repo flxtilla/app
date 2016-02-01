@@ -7,10 +7,9 @@ import (
 	"github.com/thrisp/flotilla/txst"
 )
 
-func testApp(t *testing.T, name string, conf ...ConfigurationFn) *App {
+func AppForTest(t *testing.T, name string, conf ...ConfigurationFn) *App {
 	conf = append(conf, Mode("Testing", true))
 	a := New(name, conf...)
-	//mkTestQueues(t, a)
 	err := a.Configure()
 	if err != nil {
 		t.Errorf("Error in app configuration: %s", err.Error())
@@ -19,7 +18,7 @@ func testApp(t *testing.T, name string, conf ...ConfigurationFn) *App {
 }
 
 func TestSimple(t *testing.T) {
-	a := testApp(t, "simple")
+	a := AppForTest(t, "simple")
 	if a.Name() != "simple" {
 		t.Errorf(`App name was %s, expected "simple"`, a.Name())
 	}
@@ -35,7 +34,7 @@ func testRouteOK(method string, t *testing.T) {
 		func(t *testing.T) state.Manage { return func(s state.State) { passed = true } },
 	)
 
-	app := testApp(t, "flotilla_testRouteOK")
+	app := AppForTest(t, "flotilla_testRouteOK")
 
 	txst.SimplePerformer(t, app, exp).Perform()
 
@@ -79,8 +78,8 @@ func rmanage(t *testing.T, x *tx) state.Manage {
 
 func TestMultipleRoutesSameMethodOK(t *testing.T) {
 	var x []txst.Expectation
-	ctxs := txs()
-	for _, r := range ctxs {
+	rtxs := txs()
+	for _, r := range rtxs {
 		m := rmanage(t, r)
 		nx, _ := txst.NewExpectation(
 			200,
@@ -92,24 +91,25 @@ func TestMultipleRoutesSameMethodOK(t *testing.T) {
 		)
 		x = append(x, nx)
 	}
-	app := testApp(t, "multipleRoutesSameMethodOk")
+	app := AppForTest(t, "multipleRoutesSameMethodOk")
 	txst.MultiPerformer(t, app, x...).Perform()
-	for _, ctx := range ctxs {
-		if !ctx.passed && !ctx.runonce {
-			t.Errorf("Multiple route same method error: %+v", ctx)
+	for _, rtx := range rtxs {
+		if !rtx.passed && !rtx.runonce {
+			t.Errorf("Multiple route same method error: %+v", rtx)
 		}
 	}
 }
 
-/*
 func testRouteNotOK(method string, t *testing.T) {
 	exp, _ := txst.NotFoundExpectation(
 		method,
 		"/test",
-		func(t *testing.T) state.Manage { return func(s state.State) {} },
+		func(t *testing.T) state.Manage {
+			return func(s state.State) {}
+		},
 	)
 
-	app := testApp(t, "flotilla_testRouteNotOk")
+	app := AppForTest(t, "flotilla_testRouteNotOk")
 
 	txst.SimplePerformer(t, app, exp).Perform()
 }
@@ -119,4 +119,3 @@ func TestRouteNotOK(t *testing.T) {
 		testRouteNotOK(m, t)
 	}
 }
-*/

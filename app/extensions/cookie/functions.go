@@ -1,4 +1,4 @@
-package app
+package cookie
 
 import (
 	"bytes"
@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thrisp/flotilla/extension"
 	"github.com/thrisp/flotilla/state"
+	"github.com/thrisp/flotilla/store"
 )
 
 var (
@@ -37,6 +37,20 @@ func readcookies(s state.State) map[string]string {
 	return ret
 }
 
+func stored(s state.State) store.Store {
+	if st, err := s.Call("store"); err == nil {
+		return st.(store.Store)
+	}
+	return nil
+}
+
+func storedString(s state.State, key string) string {
+	if st := stored(s); st != nil {
+		return st.String(key)
+	}
+	return ""
+}
+
 func unpackcookie(s state.State, cookie *http.Cookie) string {
 	val := cookie.Value
 	if val == "" {
@@ -53,7 +67,7 @@ func unpackcookie(s state.State, cookie *http.Cookie) string {
 	// timestamp := parts[1]
 	sig := parts[2]
 
-	if secret := StoredString(s, "SECRET_KEY"); secret != "" {
+	if secret := storedString(s, "SECRET_KEY"); secret != "" {
 		h := hmac.New(sha1.New, []byte(secret))
 
 		if fmt.Sprintf("%02x", h.Sum(nil)) != sig {
@@ -66,9 +80,24 @@ func unpackcookie(s state.State, cookie *http.Cookie) string {
 	return "cookie value could not be read and/or unpacked"
 }
 
+func headerModify(s state.State, action string, values ...[]string) error {
+	w := s.RWriter()
+	switch action {
+	case "set":
+		for _, v := range values {
+			w.Header().Set(v[0], v[1])
+		}
+	default:
+		for _, v := range values {
+			w.Header().Add(v[0], v[1])
+		}
+	}
+	return nil
+}
+
 func cookie(s state.State, secure bool, name string, value string, opts []interface{}) error {
 	if secure {
-		if secret := StoredString(s, "SECRET_KEY"); secret != "" {
+		if secret := storedString(s, "SECRET_KEY"); secret != "" {
 			value = securevalue(secret, value)
 		}
 	}
@@ -135,12 +164,3 @@ func basiccookie(name string, value string, opts ...interface{}) string {
 	}
 	return b.String()
 }
-
-var cookieFns = []extension.Function{
-	mkFunction("cookie", cookie),
-	mkFunction("securecookie", securecookie),
-	mkFunction("cookies", cookies),
-	mkFunction("readcookies", readcookies),
-}
-
-var CookieFxtension extension.Fxtension = extension.New("cookie_fxtension", cookieFns...)

@@ -2,36 +2,91 @@ package log
 
 import (
 	"bytes"
+	"fmt"
 	"sort"
+	"strings"
 	"time"
 )
 
 type TextFormatter struct {
-	ForceColors     bool
-	DisableColors   bool
+	Color           bool
 	TimestampFormat string
-	DisableSorting  bool
+	Sort            bool
 }
 
 func DefaultTextFormatter() Formatter {
 	return &TextFormatter{
 		true,
-		false,
 		time.StampNano,
 		false,
 	}
 }
 
-var (
-	green   = string([]byte{27, 91, 57, 55, 59, 52, 50, 109})
-	white   = string([]byte{27, 91, 57, 48, 59, 52, 55, 109})
-	yellow  = string([]byte{27, 91, 57, 55, 59, 52, 51, 109})
-	red     = string([]byte{27, 91, 57, 55, 59, 52, 49, 109})
-	blue    = string([]byte{27, 91, 57, 55, 59, 52, 52, 109})
-	magenta = string([]byte{27, 91, 57, 55, 59, 52, 53, 109})
-	cyan    = string([]byte{27, 91, 57, 55, 59, 52, 54, 109})
-	reset   = string([]byte{27, 91, 48, 109})
-)
+func (t *TextFormatter) Format(e Entry) ([]byte, error) {
+	fs := e.Fields()
+	var keys []string = make([]string, 0, len(fs))
+	for _, k := range fs {
+		keys = append(keys, k.Key)
+	}
+
+	if t.Sort {
+		sort.Strings(keys)
+	}
+
+	timestampFormat := t.TimestampFormat
+	if timestampFormat == "" {
+		timestampFormat = time.StampNano
+	}
+
+	b := &bytes.Buffer{}
+
+	if t.Color {
+		formatColorFields(b, e, keys, timestampFormat)
+	} else {
+		formatFields(b, e, keys, timestampFormat)
+	}
+
+	b.WriteByte('\n')
+
+	return b.Bytes(), nil
+}
+
+func formatColorFields(b *bytes.Buffer, e Entry, keys []string, timestampFormat string) {
+	lvl := e.Level()
+	lvlColor := lvl.Color()
+	lvlText := strings.ToUpper(lvl.String())
+	fmt.Fprintf(b, "%s %s %s ", lvlColor, lvlText, reset)
+
+	timestamp := time.Now().Format(timestampFormat)
+	fmt.Fprintf(b, "%s| %v |%s ", red, timestamp, reset)
+
+	fds := e.Fields()
+	for _, v := range fds {
+		for _, vv := range keys {
+			if v.Key == vv {
+				fmt.Fprintf(b, "%v", v.Value)
+			}
+		}
+	}
+}
+
+func formatFields(b *bytes.Buffer, e Entry, keys []string, timestampFormat string) {
+	lvl := e.Level()
+	lvlText := strings.ToUpper(lvl.String())
+	fmt.Fprintf(b, "[%s]", lvlText)
+
+	timestamp := time.Now().Format(timestampFormat)
+	fmt.Fprintf(b, " | %v | ", timestamp)
+
+	fds := e.Fields()
+	for _, v := range fds {
+		for _, vv := range keys {
+			if v.Key == vv {
+				fmt.Fprintf(b, "%v", v.Value)
+			}
+		}
+	}
+}
 
 //func LogFmt(s State) string {
 //st := s.RStatus
@@ -45,24 +100,6 @@ var (
 //s.RPath,
 //)
 //}
-
-func (lv Level) Color() string {
-	switch lv {
-	case LPanic:
-		return red
-	case LFatal:
-		return magenta
-	case LError:
-		return cyan
-	case LWarn:
-		return yellow
-	case LInfo:
-		return green
-	case LDebug:
-		return blue
-	}
-	return white
-}
 
 //func StatusColor(code int) (color string) {
 //	switch {
@@ -97,18 +134,3 @@ func (lv Level) Color() string {
 //	}
 //	return color
 //}
-
-func (t *TextFormatter) Format(e Entry) ([]byte, error) {
-	fs := e.Fields()
-	var keys []string = make([]string, 0, len(fs))
-	for _, k := range fs {
-		keys = append(keys, k.Key)
-	}
-
-	if !t.DisableSorting {
-		sort.Strings(keys)
-	}
-
-	b := &bytes.Buffer{}
-	return b.Bytes(), nil
-}

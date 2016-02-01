@@ -7,36 +7,6 @@ import (
 	"sync"
 )
 
-type Level int
-
-func (l Level) String() string {
-	switch l {
-	case LPanic:
-		return "panic"
-	case LFatal:
-		return "fatal"
-	case LError:
-		return "error"
-	case LWarn:
-		return "warn"
-	case LInfo:
-		return "info"
-	case LDebug:
-		return "debug"
-	}
-	return "unrecognized"
-}
-
-const (
-	LUnrecognized Level = iota
-	LPanic
-	LFatal
-	LError
-	LWarn
-	LInfo
-	LDebug
-)
-
 type StdLogger interface {
 	Fatal(...interface{})
 	Fatalf(string, ...interface{})
@@ -145,18 +115,18 @@ func (l *logger) Panic(v ...interface{}) {
 	if l.level == LPanic {
 		log(LPanic, newEntry(l, mkFields(v...)...))
 	}
+	panic(fmt.Sprint(v...))
 }
 
 func (l *logger) Panicf(format string, v ...interface{}) {
 	if l.level == LPanic {
 		log(LPanic, newEntry(l, mkFormatFields(format, v...)...))
 	}
+	panic(fmt.Sprintf(format, v...))
 }
 
 func (l *logger) Panicln(v ...interface{}) {
-	if l.level == LPanic {
-		log(LPanic, newEntry(l, mkFields(v...)...))
-	}
+	l.Panic(v...)
 }
 
 func (l *logger) Print(v ...interface{}) {

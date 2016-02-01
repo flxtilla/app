@@ -8,6 +8,7 @@ type Routes interface {
 	GetRoute(string) (*Route, error)
 	SetRoute(*Route)
 	All() []*Route
+	Map() map[string]*Route
 }
 
 func NewRoutes() Routes {
@@ -39,4 +40,8 @@ func (r *routes) All() []*Route {
 		ret = append(ret, v)
 	}
 	return ret
+}
+
+func (r *routes) Map() map[string]*Route {
+	return r.r
 }

@@ -1,17 +1,30 @@
-package status
+package status_test
 
-/*
 import (
 	"bytes"
 	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/thrisp/flotilla/app"
+	"github.com/thrisp/flotilla/state"
+	"github.com/thrisp/flotilla/txst"
 )
 
-func callStatus(status int) Manage {
-	return func(c Ctx) {
-		_, _ = c.Call("status", status)
+func AppForTest(t *testing.T, name string, conf ...app.ConfigurationFn) *app.App {
+	conf = append(conf, app.Mode("Testing", true))
+	a := app.New(name, conf...)
+	err := a.Configure()
+	if err != nil {
+		t.Errorf("Error in app configuration: %s", err.Error())
+	}
+	return a
+}
+
+func callStatus(status int) state.Manage {
+	return func(s state.State) {
+		_, _ = s.Call("status", status)
 	}
 }
 
@@ -20,13 +33,13 @@ func routestring(status int) string {
 }
 
 func testStatus(t *testing.T, status int, method, expects string) {
-	a := testApp(t, "statuses")
+	a := AppForTest(t, "statuses")
 
-	exp, _ := NewExpectation(
+	exp, _ := txst.NewExpectation(
 		status,
 		method,
 		routestring(status),
-		func(t *testing.T) Manage {
+		func(t *testing.T) state.Manage {
 			return callStatus(status)
 		},
 	)
@@ -38,23 +51,23 @@ func testStatus(t *testing.T, status int, method, expects string) {
 		},
 	)
 
-	SimplePerformer(t, a, exp).Perform()
+	txst.SimplePerformer(t, a, exp).Perform()
 }
 
 func TestStatus(t *testing.T) {
-	for _, m := range METHODS {
+	for _, m := range txst.METHODS {
 		testStatus(t, 418, m, "418 I'm a teapot")
 	}
 }
 
 func test500(method string, t *testing.T) {
-	a := testApp(t, "panic")
-	exp, _ := NewExpectation(
+	a := AppForTest(t, "panic")
+	exp, _ := txst.NewExpectation(
 		500,
 		method,
 		routestring(500),
-		func(t *testing.T) Manage {
-			return func(c Ctx) {
+		func(t *testing.T) state.Manage {
+			return func(s state.State) {
 				panic("Test panic!")
 			}
 		},
@@ -66,46 +79,34 @@ func test500(method string, t *testing.T) {
 			}
 		},
 	)
-	SimplePerformer(t, a, exp).Perform()
+	txst.SimplePerformer(t, a, exp).Perform()
 }
 
 func Test500(t *testing.T) {
-	for _, m := range METHODS {
+	for _, m := range txst.METHODS {
 		test500(m, t)
 	}
 }
 
-func Custom404(c Ctx) {
-	c.Call("serveplain", 404, "I AM NOT FOUND :: 404")
+func Custom404(s state.State) {
+	s.Call("serve_plain", 404, "I AM NOT FOUND :: 404")
 }
 
-func customStatus404(t *testing.T, method, expects string) {
-	a := testApp(t, "customstatus404")
-	a.STATUS(404, Custom404)
-
-	z := ZeroExpectationPerformer(t, a, 404, method, "/notfound")
-	z.Perform()
-
-	if bytes.Compare(z.response.Body.Bytes(), []byte(expects)) != 0 {
-		t.Errorf("Custom status 404 test expected %s, but got %s.", expects, z.response.Body.String())
-	}
+func Custom418(s state.State) {
+	s.Call("serve_plain", 418, "I AM TEAPOT :: 418")
 }
 
-func Custom418(c Ctx) {
-	c.Call("serveplain", 418, "I AM TEAPOT :: 418")
-}
-
-func customStatus(t *testing.T, method string, expects string, status int, m Manage) {
-	a := testApp(t, "customstatus")
+func customStatus(t *testing.T, method string, expects string, status int, m state.Manage) {
+	a := AppForTest(t, "customstatus")
 	a.STATUS(status, m)
 
-	exp, _ := NewExpectation(
-		418,
+	exp, _ := txst.NewExpectation(
+		status,
 		"GET",
 		routestring(status),
-		func(t *testing.T) Manage {
-			return func(c Ctx) {
-				_, _ = c.Call("status", status)
+		func(t *testing.T) state.Manage {
+			return func(s state.State) {
+				_, _ = s.Call("status", status)
 			}
 		},
 	)
@@ -117,13 +118,12 @@ func customStatus(t *testing.T, method string, expects string, status int, m Man
 		},
 	)
 
-	SimplePerformer(t, a, exp).Perform()
+	txst.SimplePerformer(t, a, exp).Perform()
 }
 
 func TestCustomStatus(t *testing.T) {
-	for _, m := range METHODS {
-		customStatus404(t, m, "I AM NOT FOUND :: 404")
+	for _, m := range txst.METHODS {
+		customStatus(t, m, "I AM NOT FOUND :: 404", 404, Custom404)
 		customStatus(t, m, "I AM TEAPOT :: 418", 418, Custom418)
 	}
 }
-*/

@@ -1,13 +1,13 @@
-package assets
+package asset
 
-import "github.com/thrisp/flotilla/resources"
+//import "github.com/thrisp/flotilla/resources"
 
-var TestAsset AssetFS = NewAssetFS(
-	resources.Asset,
-	resources.AssetDir,
-	resources.AssetNames,
-	"",
-)
+//var TestAsset AssetFS = NewAssetFS(
+//	resources.Asset,
+//	resources.AssetDir,
+//	resources.AssetNames,
+//	"",
+//)
 
 /*
 func TestAssets(t *testing.T) {

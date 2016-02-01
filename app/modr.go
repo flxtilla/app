@@ -5,25 +5,26 @@ import (
 	"github.com/thrisp/flotilla/xrr"
 )
 
-// Modes configure specific modes to reference or differentate fuctionality.
-// Unless set, an App defaults to Development true, Production false, and
-// Testing false.
-type Modes interface {
+// Modr is an interface for managing any number of modes.
+type Modr interface {
 	GetMode(string) bool
 	SetMode(string, bool) error
 }
 
-type modes struct {
+type modr struct {
 	Development bool
 	Production  bool
 	Testing     bool
 }
 
-func defaultModes() Modes {
-	return &modes{true, false, false}
+// DefaultModr returns a default Modr.
+func DefaultModr() Modr {
+	return &modr{true, false, false}
 }
 
-func (m *modes) GetMode(mode string) bool {
+// GetMode returns a boolean value for the provided string mode, false if not
+// an existing mode.
+func (m *modr) GetMode(mode string) bool {
 	switch mode {
 	case "dev", "development":
 		return m.Development
@@ -35,11 +36,11 @@ func (m *modes) GetMode(mode string) bool {
 	return false
 }
 
-var SetModeError = xrr.NewXrror("mode could not be set to %s").Out
+var setModeError = xrr.NewXrror("mode could not be set to %s").Out
 
 // SetMode sets the Mode indicated with a string with the provided boolean value.
 // e.g. env.SetMode("Production", true)
-func (m *modes) SetMode(mode string, value bool) error {
+func (m *modr) SetMode(mode string, value bool) error {
 	switch mode {
 	case "Development":
 		m.Development = value
@@ -51,9 +52,11 @@ func (m *modes) SetMode(mode string, value bool) error {
 		m.Testing = value
 		return nil
 	}
-	return SetModeError(mode)
+	return setModeError(mode)
 }
 
+// Given State and a string denoting a Mode, ModeIs returns a boolean value
+// for that mode. If mode string is does not exist, returns false.
 func ModeIs(s state.State, is string) bool {
 	m, _ := s.Call("mode_is", is)
 	return m.(bool)

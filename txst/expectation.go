@@ -12,6 +12,7 @@ import (
 
 type Expectation interface {
 	Register(*testing.T, TxstApp)
+	SetPreRegister(bool)
 	SetPre(...func(*testing.T, *http.Request))
 	SetPost(...func(*testing.T, *httptest.ResponseRecorder))
 	Request() *http.Request
@@ -85,6 +86,10 @@ func (e *expectation) Register(t *testing.T, a TxstApp) {
 			},
 		))
 	}
+}
+
+func (e *expectation) SetPreRegister(as bool) {
+	e.preregistered = true
 }
 
 func (e *expectation) Request() *http.Request {

@@ -1,55 +1,110 @@
 package static
 
-/*
 import (
+	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/thrisp/flotilla/app"
+	"github.com/thrisp/flotilla/asset"
+	"github.com/thrisp/flotilla/state"
+	"github.com/thrisp/flotilla/static/resources"
+	"github.com/thrisp/flotilla/txst"
 )
 
-func teststaticdirectory() string {
-	return filepath.Join(testlocation(), "resources", "static")
+func testLocation() string {
+	wd, _ := os.Getwd()
+	ld, _ := filepath.Abs(wd)
+	return ld
+}
+
+var TestAsset asset.AssetFS = asset.NewAssetFS(
+	resources.Asset,
+	resources.AssetDir,
+	resources.AssetNames,
+	"",
+)
+
+func AppForTest(t *testing.T, name string, conf ...app.ConfigurationFn) *app.App {
+	conf = append(conf, app.Mode("Testing", true))
+	a := app.New(name, conf...)
+	err := a.Configure()
+	if err != nil {
+		t.Errorf("Error in app configuration: %s", err.Error())
+	}
+	return a
 }
 
 func TestStatic(t *testing.T) {
-	a := testApp(
+	a := AppForTest(
 		t,
 		"testStatic",
-		WithAssets(TestAsset),
+		app.Assets(TestAsset),
 	)
-	a.STATIC("/resources/static/css/*filepath")
-	a.StaticDirs(teststaticdirectory())
-	ZeroExpectationPerformer(t, a, 200, "GET", "/static/css/static.css").Perform()
-	ZeroExpectationPerformer(t, a, 200, "GET", "/static/css/css/css/css_asset.css").Perform()
-	ZeroExpectationPerformer(t, a, 404, "GET", "/static/css/no.css").Perform()
+
+	a.STATIC("/resources/static/*filepath", "resources", a.Environment)
+
+	txst.ZeroExpectationPerformer(t, a, 200, "GET", "/resources/static/css/static.css").Perform()
+
+	exp, _ := txst.NewExpectation(
+		200,
+		"GET",
+		"/static/css/static.css",
+	)
+	exp.SetPost(
+		func(t *testing.T, r *httptest.ResponseRecorder) {
+			b := r.Body.String()
+			if !strings.Contains(b, "test css file") {
+				t.Error(`Test css file did not return "test css file"`)
+			}
+		},
+	)
+	exp.SetPreRegister(true)
+	txst.SimplePerformer(t, a, exp).Perform()
+
+	txst.ZeroExpectationPerformer(t, a, 200, "GET", "/static/css/css/css/css_asset.css").Perform()
+	txst.ZeroExpectationPerformer(t, a, 404, "GET", "/static/css/no.css").Perform()
 }
 
-type teststaticor struct{}
+type testStatic struct{}
 
-func (ts *teststaticor) StaticDirs(d ...string) []string {
+func (ts *testStatic) StaticDirs(d ...string) []string {
 	return []string{""}
 }
 
-func (ts *teststaticor) Exists(c Ctx, s string) bool {
+func (ts *testStatic) Exists(s state.State, str string) bool {
 	return true
 }
 
-func (ts *teststaticor) Manage(c Ctx) {
-	c.Call("writetoresponse", "from external staticor")
+func (ts *testStatic) StaticManage(s state.State) {
+	s.Call("write_to_response", "from external staticr")
 }
 
-func TestStaticor(t *testing.T) {
-	ss := &teststaticor{}
-	a := testApp(
+func TestCustomStaticor(t *testing.T) {
+	ss := &testStatic{}
+	a := AppForTest(
 		t,
 		"testExternalStaticor",
-		UseStaticor(ss),
 	)
-	a.STATIC("/staticor/")
-	p := ZeroExpectationPerformer(t, a, 200, "GET", "/staticor/")
-	p.Perform()
-	b := p.response.Body.String()
-	if b != "from external staticor" {
-		t.Errorf(`Test external staticor did not return "from external staticor", returned %s`, b)
-	}
+	a.SwapStaticr(ss)
+	exp, _ := txst.NewExpectation(
+		200,
+		"GET",
+		"/test/staticr/",
+		func(t *testing.T) state.Manage {
+			return a.StaticManage
+		},
+	)
+	exp.SetPost(
+		func(t *testing.T, r *httptest.ResponseRecorder) {
+			b := r.Body.String()
+			if b != "from external staticr" {
+				t.Error(`Test external staticr did not return "from external staticr"`)
+			}
+
+		},
+	)
+	txst.SimplePerformer(t, a, exp).Perform()
 }
-*/

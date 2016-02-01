@@ -1,8 +1,6 @@
 package template
 
-/*
 import (
-	"bytes"
 	"fmt"
 	"html/template"
 	"io"
@@ -11,19 +9,26 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/thrisp/flotilla/app"
+	"github.com/thrisp/flotilla/asset"
+	"github.com/thrisp/flotilla/extension"
+	"github.com/thrisp/flotilla/state"
+	"github.com/thrisp/flotilla/template/resources"
+	"github.com/thrisp/flotilla/txst"
 )
 
-func testlocation() string {
+func testLocation() string {
 	wd, _ := os.Getwd()
 	ld, _ := filepath.Abs(wd)
 	return ld
 }
 
-func testtemplatedirectory() string {
-	return filepath.Join(testlocation(), "resources", "templates")
+func testTemplateDirectory() string {
+	return filepath.Join(testLocation(), "resources", "templates")
 }
 
-func trimtemplates(t []string) []string {
+func trimTemplates(t []string) []string {
 	var templates []string
 	for _, f := range t {
 		templates = append(templates, filepath.Base(f))
@@ -31,90 +36,105 @@ func trimtemplates(t []string) []string {
 	return templates
 }
 
-func stringtemplates(t []string) string {
-	templates := trimtemplates(t)
+func stringTemplates(t []string) string {
+	templates := trimTemplates(t)
 	return strings.Join(templates, ",")
 }
 
-var tplfuncs map[string]interface{} = map[string]interface{}{
+var tplFuncs map[string]interface{} = map[string]interface{}{
 	"Hello": func(s string) string { return fmt.Sprintf("Hello World!: %s", s) },
 }
 
-func tplfuncsconf(tf map[string]interface{}) Configuration {
-	return func(a *App) error {
-		a.Env.AddTplFuncs(tf)
+func mkFunction(k string, v interface{}) extension.Function {
+	return extension.NewFunction(k, v)
+}
+
+func tplFuncsConf(tf map[string]interface{}) app.ConfigurationFn {
+	return func(a *app.App) error {
+		a.AddTemplateFunctions(tf)
+		ext := extension.New(
+			"template_test_functions",
+			mkFunction("fn_string", fnString),
+			mkFunction("fn_html", fnHtml),
+		)
+		a.Extend(ext)
 		return nil
 	}
 }
 
-func tstrg(c Ctx) string {
+func fnString(s state.State) string {
 	return fmt.Sprintf("returned STRING")
 }
 
-func thtml(c Ctx) template.HTML {
+func fnHtml(s state.State) template.HTML {
 	return "<div>returned HTML</div>"
 }
 
-func tcall(c Ctx) string {
-	return "returned CALL"
-}
-
-var tstctxprc map[string]interface{} = map[string]interface{}{
-	"Hi1": tstrg,
-	"Hi2": thtml,
-	"Hi3": tcall,
-}
-
-func templatecontains(t *testing.T, body string, mustcontain string) {
-	if !strings.Contains(body, mustcontain) {
+func templateContains(t *testing.T, body string, must string) {
+	if !strings.Contains(body, must) {
 		t.Errorf(`Test template was not rendered correctly, expecting %s but it is not present:
 		%s
-		`, mustcontain, body)
+		`, must, body)
 	}
 }
 
+func AppForTest(t *testing.T, name string, conf ...app.ConfigurationFn) *app.App {
+	conf = append(conf, app.Mode("Testing", true))
+	a := app.New(name, conf...)
+	err := a.Configure()
+	if err != nil {
+		t.Errorf("Error in app configuration: %s", err.Error())
+	}
+	return a
+}
+
+func existsIn(s string, l []string) bool {
+	for _, x := range l {
+		if s == x {
+			return true
+		}
+	}
+	return false
+}
+
+var TestAsset asset.AssetFS = asset.NewAssetFS(
+	resources.Asset,
+	resources.AssetDir,
+	resources.AssetNames,
+	"",
+)
+
 func TestDefaultTemplating(t *testing.T) {
-	a := testApp(
+	a := AppForTest(
 		t,
 		"testDefaultTemplating",
-		WithAssets(TestAsset),
-		tplfuncsconf(tplfuncs),
-		CtxProcessor("Hi1", tstrg),
-		CtxProcessors(tstctxprc),
+		app.Assets(TestAsset),
+		tplFuncsConf(tplFuncs),
 	)
-	a.Env.TemplateDirs(testtemplatedirectory())
 
-	d1 := stringtemplates(a.Env.TemplateDirs())
-	d2 := stringtemplates(a.Env.Templator.ListTemplateDirs())
-	if bytes.Compare([]byte(d1), []byte(d2)) != 0 {
-		t.Errorf(`App Env template directories and Templator template directories differ where they should be equal.
-		Env template directories:
-			%s
-		Templator template directories:
-			%s`, d1, d2)
-	}
+	a.TemplateDirs(testTemplateDirectory())
 
 	var expected []string = []string{"layout.html", "test.html", "layout_asset.html", "test_asset.html"}
-	var templates []string = trimtemplates(a.Env.Templator.ListTemplates())
+	var existing []string = trimTemplates(a.ListTemplates())
 
 	for _, ex := range expected {
-		if !existsIn(ex, templates) {
+		if !existsIn(ex, existing) {
 			t.Errorf(`Existing templates do not contain %s`, ex)
 		}
 	}
 
-	exp1, _ := NewExpectation(
+	exp1, _ := txst.NewExpectation(
 		200,
 		"GET",
 		"/template",
-		func(t *testing.T) Manage {
-			return func(c Ctx) {
+		func(t *testing.T) state.Manage {
+			return func(s state.State) {
 				ret := make(map[string]interface{})
 				ret["Title"] = "rendered from test template test.html"
-				c.Call("flash", "test_flash", "TEST_FLASH_ONE")
-				c.Call("flash", "test_flash", "TEST_FLASH_TWO")
-				c.Call("set", "set_in_ctx", "SET_IN_CTX")
-				c.Call("rendertemplate", "test.html", ret)
+				s.Flash("test_flash", "TEST_FLASH_ONE")
+				s.Flash("test_flash", "TEST_FLASH_TWO")
+				//	s.Call("set", "set_in_ctx", "SET_IN_CTX")
+				s.Call("render_template", "test.html", ret)
 			}
 		},
 	)
@@ -125,42 +145,54 @@ func TestDefaultTemplating(t *testing.T) {
 				`Hello World!: TEST`,
 				`returned STRING`,
 				`<div>returned HTML</div>`,
-				`returned CALL`,
 				`[TEST_FLASH_ONE TEST_FLASH_TWO]`,
-				`/template?value1%3Dadditional`,
-				`Unable to get url for route \does\not\exist\p\s\get with params [param /a/splat/fragment].`,
-				`SET_IN_CTX`,
+				// `/template?value1%3Dadditional`,
+				// `Unable to get url for route \does\not\exist\p\s\get with params [param /a/splat/fragment].`,
+				// `SET_IN_CTX`,
 			}
 
 			for _, lf := range lookfor {
-				templatecontains(t, r.Body.String(), lf)
+				templateContains(t, r.Body.String(), lf)
 			}
-
 		},
 	)
 
-	exp2, _ := NewExpectation(
+	exp2, _ := txst.NewExpectation(
 		200,
 		"GET",
 		"/asset_template",
-		func(t *testing.T) Manage {
-			return func(c Ctx) {
-				c.Call("rendertemplate", "test_asset.html", "rendered from test template test_asset.html")
+		func(t *testing.T) state.Manage {
+			return func(s state.State) {
+				s.Call("render_template", "test_asset.html", "rendered from test template test_asset.html")
 			}
 		},
 	)
 	exp2.SetPost(
 		func(t *testing.T, r *httptest.ResponseRecorder) {
-			templatecontains(t, r.Body.String(), `<title>rendered from test template test_asset.html</title>`)
+			//templateContains(t, r.Body.String(), `<title>rendered from test template test_asset.html</title>`)
 		},
 	)
 
-	MultiPerformer(t, a, exp1, exp2).Perform()
+	txst.MultiPerformer(t, a, exp1, exp2).Perform()
 }
 
-type testtemplator struct{}
+type testTemplatr struct{}
 
-func (tt *testtemplator) Render(w io.Writer, s string, i interface{}) error {
+func (tt *testTemplatr) TemplateDirs(s ...string) []string {
+	return []string{"test_templatr_dirs"}
+}
+
+func (tt *testTemplatr) ListTemplates() []string {
+	return []string{"test_templatr_templates"}
+}
+
+func (tt *testTemplatr) AddTemplateFunctions(fns map[string]interface{}) error {
+	return nil
+}
+
+func (tt *testTemplatr) SetTemplateFunctions() {}
+
+func (tt *testTemplatr) Render(w io.Writer, s string, i interface{}) error {
 	_, err := w.Write([]byte("test templator"))
 	if err != nil {
 		return err
@@ -168,30 +200,29 @@ func (tt *testtemplator) Render(w io.Writer, s string, i interface{}) error {
 	return nil
 }
 
-func (tt *testtemplator) ListTemplateDirs() []string {
-	return []string{"test"}
+func (tt *testTemplatr) RenderTemplate(s state.State, template string, data interface{}) error {
+	s.Push(func(ps state.State) {
+		td := NewTemplateData(ps, data)
+		tt.Render(ps.RWriter(), template, td)
+	})
+	return nil
 }
 
-func (tt *testtemplator) ListTemplates() []string {
-	return []string{"test_template"}
-}
-
-func (tt *testtemplator) UpdateTemplateDirs(...string) {}
-
-func TestTemplator(t *testing.T) {
-	ttr := &testtemplator{}
-	a := testApp(
+func TestTemplatr(t *testing.T) {
+	tt := &testTemplatr{}
+	a := AppForTest(
 		t,
 		"testExternalTemplator",
-		UseTemplator(ttr),
+		app.Assets(TestAsset),
 	)
-	exp, _ := NewExpectation(
+	a.SwapTemplatr(tt)
+	exp, _ := txst.NewExpectation(
 		200,
 		"GET",
 		"/templator/",
-		func(t *testing.T) Manage {
-			return func(c Ctx) {
-				c.Call("rendertemplate", "test.html", "test data")
+		func(t *testing.T) state.Manage {
+			return func(s state.State) {
+				s.Call("render_template", "test.html", "test data")
 			}
 		},
 	)
@@ -204,6 +235,5 @@ func TestTemplator(t *testing.T) {
 
 		},
 	)
-	SimplePerformer(t, a, exp).Perform()
+	txst.SimplePerformer(t, a, exp).Perform()
 }
-*/

@@ -4,53 +4,51 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/thrisp/flotilla/assets"
+	"github.com/thrisp/flotilla/asset"
 	"github.com/thrisp/flotilla/extension"
-	"github.com/thrisp/flotilla/log"
 	"github.com/thrisp/flotilla/session"
 	"github.com/thrisp/flotilla/static"
-	"github.com/thrisp/flotilla/status"
 	"github.com/thrisp/flotilla/store"
 	"github.com/thrisp/flotilla/template"
 )
 
 type Environment interface {
-	Modes
-	store.Store
-	assets.Assets
-	static.Static
-	template.Templates
-	extension.Fxtension
+	Statr
+	Logr
+	Modr
+	asset.Assets
+	extension.Extension
 	session.Sessions
-	status.Statuses
-	log.Logger
+	static.Static
+	store.Store
+	template.Templates
 }
 
 type environment struct {
-	Modes
-	store.Store
-	assets.Assets
-	static.Static
-	template.Templates
-	extension.Fxtension
+	Logr
+	Modr
+	Statr
+	asset.Assets
+	extension.Extension
 	session.Sessions
-	status.Statuses
-	log.Logger
+	static.Static
+	store.Store
+	template.Templates
 }
 
 func newEnvironment(app *App) Environment {
 	st := defaultStore()
-	as := assets.New()
+	as := asset.New()
 	return &environment{
-		Modes:     defaultModes(),
-		Store:     st,
+		Logr:      DefaultLogr(),
+		Modr:      DefaultModr(),
+		Statr:     DefaultStatr(),
 		Assets:    as,
+		Extension: BuiltInExtension(app),
+		Store:     st,
+		Sessions:  session.NewSessions(st),
 		Static:    static.New(st, as),
 		Templates: template.New(template.DefaultTemplatr(st, as)),
-		Fxtension: BuiltInExtension(app),
-		Sessions:  session.NewSessions(st),
-		Statuses:  status.New(),
-		Logger:    log.New(os.Stdout, log.LInfo, log.DefaultTextFormatter()),
 	}
 }
 
@@ -60,6 +58,7 @@ func defaultStore() store.Store {
 	s.Add("secret_key", "Flotilla;Secret;Key;1")
 	s.Add("session_cookiename", "session")
 	s.Add("session_lifetime", "2629743")
+	s.Add("working_path", workingPath)
 	s.Add("static_directories", workingStatic)
 	s.Add("template_directories", workingTemplates)
 	return s

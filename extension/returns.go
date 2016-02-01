@@ -7,7 +7,7 @@ type Returns interface {
 }
 
 type returns struct {
-	e Fxtension
+	e Extension
 }
 
 func (r *returns) CallString(name string, arg ...interface{}) string {

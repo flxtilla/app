@@ -7,10 +7,16 @@ import (
 	"github.com/thrisp/flotilla/xrr"
 )
 
+type Resulter interface {
+	Code() int
+	Params() Params
+	Recorder
+}
+
 type Result struct {
-	Code   int
+	code   int
 	Rule   Rule
-	Params Params
+	params Params
 	TSR    bool
 	xrr.Xrroror
 	Recorder
@@ -18,13 +24,21 @@ type Result struct {
 
 func NewResult(code int, rule Rule, params Params, tsr bool) *Result {
 	return &Result{
-		Code:     code,
+		code:     code,
 		Rule:     rule,
-		Params:   params,
+		params:   params,
 		TSR:      tsr,
 		Xrroror:  xrr.NewXrroror(),
 		Recorder: newRecorder(),
 	}
+}
+
+func (r *Result) Code() int {
+	return r.code
+}
+
+func (r *Result) Params() Params {
+	return r.params
 }
 
 type Recorder interface {

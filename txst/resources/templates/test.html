@@ -8,14 +8,14 @@
     <div>TEST TEMPLATE</div>
     {{ template "partial_one" }}
     {{ Hello "TEST" }}
-    {{ .STRING "Hi1" }}
-    {{ .STRING "Non"}}
+    {{ /* .STRING "Hi1" */ }}
+    {{ /* .STRING "Non" */ }}
     {{ .HTML "Hi2" }}
     {{ .HTML "Non"}}
     {{ .CALL "Hi3" }}
     {{ .CALL "Non"}}
-    {{ .Flash.Write "test_flash"}}
-    {{ .UrlFor "\\template\\get" true "additional" }}
-    {{ .UrlFor "\\does\\not\\exist\\p\\s\\get" false "param" "/a/splat/fragment"}}
+    {{ /* .Flash.Write "test_flash" */ }}
+    {{ /* .UrlFor "\\template\\get" true "additional" */ }}
+    {{ /* .UrlFor "\\does\\not\\exist\\p\\s\\get" false "param" "/a/splat/fragment" */}}
     {{ .set_in_ctx }}
 {{ end }}

@@ -34,7 +34,7 @@ func (l *loader) ValidFileExtension(ext string) bool {
 
 func (l *loader) assetTemplates() []string {
 	var ret []string
-	for _, assetfs := range l.a.Range() {
+	for _, assetfs := range l.a.ListAssetFS() {
 		for _, f := range assetfs.AssetNames() {
 			if l.ValidFileExtension(filepath.Ext(f)) {
 				ret = append(ret, f)
