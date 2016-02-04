@@ -2,6 +2,7 @@ package store
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"os"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 
 type Store interface {
 	Load(string) error
+	LoadByte([]byte, string) error
 	Add(string, string)
 	Returnr
 }
@@ -85,15 +87,19 @@ func (s store) List(key string) []string {
 	return nil
 }
 
-func (s store) Load(filename string) (err error) {
+func (s store) Load(filename string) error {
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 	reader := bufio.NewReader(file)
-	err = s.parse(reader, filename)
-	return err
+	return s.parse(reader, filename)
+}
+
+func (s store) LoadByte(b []byte, name string) error {
+	reader := bufio.NewReader(bytes.NewReader(b))
+	return s.parse(reader, name)
 }
 
 var StoreParseError = xrr.NewXrror("Store configuration parsing: syntax error at '%s:%d'.").Out

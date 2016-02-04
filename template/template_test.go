@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/thrisp/flotilla/app"
-	"github.com/thrisp/flotilla/asset"
 	"github.com/thrisp/flotilla/extension"
 	"github.com/thrisp/flotilla/state"
 	"github.com/thrisp/flotilla/template/resources"
@@ -97,18 +96,11 @@ func existsIn(s string, l []string) bool {
 	return false
 }
 
-var TestAsset asset.AssetFS = asset.NewAssetFS(
-	resources.Asset,
-	resources.AssetDir,
-	resources.AssetNames,
-	"",
-)
-
 func TestDefaultTemplating(t *testing.T) {
 	a := AppForTest(
 		t,
 		"testDefaultTemplating",
-		app.Assets(TestAsset),
+		app.Assets(resources.ResourceFS),
 		tplFuncsConf(tplFuncs),
 	)
 
@@ -213,7 +205,7 @@ func TestTemplatr(t *testing.T) {
 	a := AppForTest(
 		t,
 		"testExternalTemplator",
-		app.Assets(TestAsset),
+		app.Assets(resources.ResourceFS),
 	)
 	a.SwapTemplatr(tt)
 	exp, _ := txst.NewExpectation(

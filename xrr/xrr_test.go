@@ -1,1 +1,1 @@
-package xrr
+package xrr_test

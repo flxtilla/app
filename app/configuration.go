@@ -171,7 +171,7 @@ func Extend(fxs ...extension.Extension) ConfigurationFn {
 //
 func Assets(as ...asset.AssetFS) ConfigurationFn {
 	return func(a *App) error {
-		a.SetAssets(as...)
+		a.SetAssetFS(as...)
 		return nil
 	}
 }
