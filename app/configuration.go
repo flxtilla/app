@@ -9,7 +9,8 @@ import (
 	"github.com/thrisp/flotilla/extension"
 )
 
-// A ConfigurationFn is any function taking an App instance and returning an error.
+// A ConfigurationFn is any function taking an App instance and returning an
+// error.
 type ConfigurationFn func(*App) error
 
 var configureImmediate = []ConfigurationFn{
@@ -52,6 +53,10 @@ func defaultConfiguration(a *App, cnf ...ConfigurationFn) Configuration {
 	return c
 }
 
+// UseFn adds a ConfigurationFn to the Configuration to one of three queues
+// specified by a string. The default Configuration uses preferrred, referred,
+// and deferred queues for functions. These are useful if you need to ensure a
+// configuration function runs before or after other configuration functions.
 func (c *configuration) UseFn(to string, cnf ...ConfigurationFn) {
 	switch to {
 	case "prefer", "preferred":
@@ -141,14 +146,16 @@ func cRegisterTemplateRender(a *App) error {
 	return nil
 }
 
-// Mode returns a ConfigurationFn for the mode and value, e.g. Mode("testing", true).
+// Mode returns a ConfigurationFn for the mode and value, e.g. Mode("testing",
+// true).
 func Mode(mode string, value bool) ConfigurationFn {
 	return func(a *App) error {
 		return a.SetMode(mode, value)
 	}
 }
 
-//
+// Store returns a ConfigurationFn that adds key value items to the environment
+// Store in the form of "key:value".
 func Store(items ...string) ConfigurationFn {
 	return func(a *App) error {
 		for _, item := range items {
@@ -160,7 +167,8 @@ func Store(items ...string) ConfigurationFn {
 	}
 }
 
-//
+// Extend returns a ConfigurationFn that adds the provided extension.Extensions
+// to the app Environment.
 func Extend(fxs ...extension.Extension) ConfigurationFn {
 	return func(a *App) error {
 		a.Extend(fxs...)
@@ -168,7 +176,8 @@ func Extend(fxs ...extension.Extension) ConfigurationFn {
 	}
 }
 
-//
+// Assets returns a ConfigurationFn adding the provided AssetFS to the app
+// Environment Assets.
 func Assets(as ...asset.AssetFS) ConfigurationFn {
 	return func(a *App) error {
 		a.SetAssetFS(as...)

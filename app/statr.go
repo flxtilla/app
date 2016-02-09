@@ -7,8 +7,12 @@ import (
 	"github.com/thrisp/flotilla/state"
 )
 
+// A StateMakerFn is a function type taking an App instance, and providing a
+// state.Make function.
 type StateMakerFn func(a *App) state.Make
 
+// Statr is an interface providing a StateMakerFn to the app in addition to
+// functionality to change this function as needed.
 type Statr interface {
 	StateFunction(a *App) state.Make
 	SwapStateFunction(StateMakerFn)
@@ -18,6 +22,7 @@ type defaultStatr struct {
 	fn StateMakerFn
 }
 
+// The default flotilla Statr.
 func DefaultStatr() Statr {
 	return &defaultStatr{
 		fn: defaultStateMakerFunction,

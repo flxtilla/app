@@ -2,11 +2,11 @@
 
 ### Flotilla 2.0.0 (20.1.2016)
 
-- revised internal package structure
-- a more detailed Environment & Configuration
-- Rewrite and separate packaging into more distributed libraries for App,
+- new internal package structure
+- refactored App Environment & Configuration
+- rewrite and separate packaging into more distributed libraries for App,
   Assets, Extensions, Logging, Blueprints, Routes, Templates, Flash, etc.
-- Change of 'Ctx' to 'State', including refactoring and a reversion to a fuller
+- changed 'Ctx' to 'State', including refactoring and a reversion to a fuller
   interface with less emphasis on extension functions(but still retaining the
   extension functionality for relevant items)
 

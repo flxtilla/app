@@ -12,6 +12,10 @@ import (
 	"github.com/thrisp/flotilla/template"
 )
 
+// Environemnt is an interface for central storage and access of crucial app
+// functionality. These include State creation, Logging, and app Mode
+// determination and setting, in addition to package external Assets,
+// Extension, Session, Static, Store, and Templates.
 type Environment interface {
 	Statr
 	Logr
@@ -59,6 +63,7 @@ func defaultStore() store.Store {
 	s.Add("session_cookiename", "session")
 	s.Add("session_lifetime", "2629743")
 	s.Add("working_path", workingPath)
+	s.Add("flotilla_path", FlotillaPath)
 	s.Add("static_directories", workingStatic)
 	s.Add("template_directories", workingTemplates)
 	return s

@@ -1,15 +1,16 @@
 package store_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/thrisp/flotilla/app"
-	"github.com/thrisp/flotilla/asset"
 	"github.com/thrisp/flotilla/state"
 	"github.com/thrisp/flotilla/store"
-	"github.com/thrisp/flotilla/store/resources"
+	"github.com/thrisp/flotilla/store/test/resources"
 	"github.com/thrisp/flotilla/txst"
 )
 
@@ -23,13 +24,6 @@ func AppForTest(t *testing.T, name string, conf ...app.ConfigurationFn) *app.App
 	return a
 }
 
-var TestAsset asset.AssetFS = asset.NewAssetFS(
-	resources.Asset,
-	resources.AssetDir,
-	resources.AssetNames,
-	"",
-)
-
 func testLocation() string {
 	wd, _ := os.Getwd()
 	ld, _ := filepath.Abs(wd)
@@ -37,18 +31,16 @@ func testLocation() string {
 }
 
 func testConfFile() string {
-	return filepath.Join(testLocation(), "resources", "flotilla.conf")
+	return filepath.Join(testLocation(), "test", "resources", "flotilla.conf")
 }
 
-type defaultreturns struct {
-	i   int
-	i64 int64
-	f   float64
-	b   bool
-}
-
-func CheckStore(s state.State, key string) (store.StoreItem, bool) {
-	return nil, false
+func stored(s state.State) store.Store {
+	var st store.Store
+	if s, err := s.Call("store"); err == nil {
+		st = s.(store.Store)
+		return st
+	}
+	return nil
 }
 
 func TestStore(t *testing.T) {
@@ -58,72 +50,82 @@ func TestStore(t *testing.T) {
 		"/store",
 		func(t *testing.T) state.Manage {
 			return func(s state.State) {
-				/*
-					_, exists := CheckStore(s, "UNREAD_VALUE")
-					if exists {
-						t.Errorf(`Store item value exists, but should not.`)
-					}
+				stor := stored(s)
 
-					confstr, _ := CheckStore(s, "CONFSTRING")
-					if confstr.Value != "ONE" {
-						t.Errorf(`Store item value was not "ONE", but was %s`, confstr.Value)
-					}
+				noRead := stor.String("UNREAD_VALUE")
+				if noRead != "" {
+					t.Errorf(`Store item value exists, but should not.`)
+				}
 
-					df := defaultreturns{
-						confstr.Int(),
-						confstr.Int64(),
-						confstr.Float(),
-						confstr.Bool(),
-					}
+				df := struct {
+					s   string
+					b   bool
+					f   float64
+					i   int
+					i64 int64
+					l   []string
+				}{
+					stor.String("D"),
+					stor.Bool("D"),
+					stor.Float("D"),
+					stor.Int("D"),
+					stor.Int64("D"),
+					stor.List("D"),
+				}
 
-					if df.i != 0 || df.i64 != -1 || df.f != 0.0 || df.b != false {
-						t.Errorf(`Store item did not return correct default values: %+v`, df)
-					}
+				if df.s != "" || df.b != false || df.f != 0.0 || df.i != 0 || df.i64 != -1 || df.l != nil {
+					t.Errorf(`Store item did not return correct default values: %+v`, df)
+				}
 
-					confint, _ := CheckStore(s, "CONFINT")
-					if confint.Int() != 2 {
-						t.Errorf(`Store item value was not "ONE", but was %s`, confint)
-					}
+				confString := stor.String("CONFSTRING")
+				if confString != "ONE" {
+					t.Errorf(`Store item value was not "ONE", but was %s`, confString)
+				}
 
-					confint64, _ := CheckStore(s, "CONFINT64")
-					if confint64.Int() != 99999 {
-						t.Errorf(`Store item value was not "99999", but was %s`, confint64)
-					}
+				bv := stor.Bool("CONFBOOL")
+				if bv != true {
+					t.Errorf(`Store "CONFBOOL" was not "true", but was %t`, bv)
+				}
 
-					conffloat, _ := CheckStore(s, "CONFFLOAT")
-					if conffloat.Float() != 3.33333 {
-						t.Errorf(`Store item value was not "3.33333", but was %s`, conffloat)
-					}
+				fv := stor.Float("CONFFLOAT")
+				if fv != 3.33333 {
+					t.Errorf(`Store "CONFLOAT" was not "3.33333", but was %f`, fv)
+				}
 
-					confbool, _ := CheckStore(s, "CONFBOOL")
-					if confbool.Bool() != true {
-						t.Errorf(`Store item value was not "true", but was %t`, confbool)
-					}
+				iv := stor.Int("CONFINT")
+				if iv != 2 {
+					t.Errorf(`Store "CONFINT" value was not 2, but was %d`, iv)
+				}
 
-					confsect, _ := CheckStore(s, "SECTION_BLUE")
-					if confsect.Value != "bondi" {
-						t.Errorf(`Store item value was not "bondi", but was %s`, confsect)
-					}
+				iiv := stor.Int64("CONFINT64")
+				if iiv != 99999 {
+					t.Errorf(`Store "CONFINT64" value was not "99999", but was %s`, iiv)
+				}
 
-					conflist, _ := CheckStore(s, "CONFLIST")
-					have := strings.Join(conflist.List("e"), ",")
-					expected := strings.Join([]string{"a", "b", "c", "d", "e"}, ",")
-					if bytes.Compare([]byte(have), []byte(expected)) != 0 {
-						t.Errorf(`Store item value was not [a,b,c,d,e], but was [%s]`, have)
-					}
+				sv := stor.String("SECTION_BLUE")
+				if sv != "bondi" {
+					t.Errorf(`Store item value was not "bondi", but was %s`, sv)
+				}
 
-					confasset, exists := CheckStore(s, "CONFASSET")
-					if confasset.Value != "FROM_ASSET" {
-						t.Errorf(`Store item value from assets configuration was not "FROM_ASSET", but was %s`, confasset)
-					}
-				*/
+				lv := stor.List("CONFLIST")
+				have := strings.Join(lv, ",")
+				expected := strings.Join([]string{"a", "b", "c", "d"}, ",")
+				if bytes.Compare([]byte(have), []byte(expected)) != 0 {
+					t.Errorf(`Store item value was not [a,b,c,d], but was [%s]`, have)
+				}
+
+				//confAsset, exists := CheckStore(s, "CONFASSET")
+				//val = confAsset.String()
+				//if val != "FROM_ASSET" {
+				//	t.Errorf(`Store item value from assets configuration was not "FROM_ASSET", but was %s`, val)
+				//}
 			}
 		})
 
 	a := AppForTest(
 		t,
 		"testStore",
-		app.Assets(TestAsset),
+		app.Assets(resources.ResourceFS),
 	)
 	a.Load(testConfFile())
 	ac, _ := a.GetAssetByte("assets/bin.conf")

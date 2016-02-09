@@ -44,9 +44,6 @@ func (s *statusr) GetStatus(code int) Status {
 }
 
 func (s *statusr) SetRawStatus(code int, m ...state.Manage) {
-	if s.s == nil {
-		s.s = make(map[int]Status)
-	}
 	s.s[code] = newStatus(code, m...)
 }
 

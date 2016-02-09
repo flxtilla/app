@@ -8,7 +8,7 @@ import (
 	"github.com/thrisp/flotilla/engine"
 )
 
-// App is the core structure for a flotilla application that implements the
+// App is the core structure for a flotilla application, implementing the
 // Engine, Configuration, Environment, and Blueprints interfaces.
 type App struct {
 	name string
@@ -18,7 +18,7 @@ type App struct {
 	blueprint.Blueprints
 }
 
-// Empty returns an App instance with nothing but a name.
+// Empty returns an App instance with the provided name.
 func Empty(name string) *App {
 	return &App{name: name}
 }

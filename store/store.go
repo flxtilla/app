@@ -24,6 +24,7 @@ type Returnr interface {
 	String(string) string
 	List(string) []string
 	Bool(string) bool
+	Float(string) float64
 	Int(string) int
 	Int64(string) int64
 }
@@ -34,9 +35,7 @@ func New() Store {
 	return make(store)
 }
 
-var NoItem = xrr.NewXrror("Store item (section: %s, key: %s) does not exist.").Out
-
-func (s store) query(key string) (StoreItem, error) {
+func (s store) query(key string) StoreItem {
 	var sec, seckey string
 	base := strings.Split(key, "_")
 	if len(base) == 1 {
@@ -46,45 +45,40 @@ func (s store) query(key string) (StoreItem, error) {
 	}
 	if k, ok := s[strings.ToUpper(sec)]; ok {
 		if i, ok := k[seckey]; ok {
-			return i, nil
+			return i
 		}
 	}
-	return nil, NoItem(sec, seckey)
+	return &storeItem{}
 }
 
 func (s store) String(key string) string {
-	if i, err := s.query(key); err == nil {
-		return i.String()
-	}
-	return ""
+	i := s.query(key)
+	return i.String()
 }
 
 func (s store) Bool(key string) bool {
-	if i, err := s.query(key); err == nil {
-		return i.Bool()
-	}
-	return false
+	i := s.query(key)
+	return i.Bool()
+}
+
+func (s store) Float(key string) float64 {
+	i := s.query(key)
+	return i.Float()
 }
 
 func (s store) Int(key string) int {
-	if i, err := s.query(key); err == nil {
-		return i.Int()
-	}
-	return 0
+	i := s.query(key)
+	return i.Int()
 }
 
 func (s store) Int64(key string) int64 {
-	if i, err := s.query(key); err == nil {
-		return i.Int64()
-	}
-	return -1
+	i := s.query(key)
+	return i.Int64()
 }
 
 func (s store) List(key string) []string {
-	if i, err := s.query(key); err == nil {
-		return i.List()
-	}
-	return nil
+	i := s.query(key)
+	return i.List()
 }
 
 func (s store) Load(filename string) error {
@@ -188,6 +182,7 @@ func (s store) add(section, key, value string) {
 type StoreItem interface {
 	String() string
 	Bool() bool
+	Float() float64
 	Int() int
 	Int64() int64
 	List() []string
@@ -250,5 +245,8 @@ func (i *storeItem) Int64() int64 {
 }
 
 func (i *storeItem) List() []string {
+	if i.Value == "" {
+		return nil
+	}
 	return strings.Split(i.Value, ",")
 }

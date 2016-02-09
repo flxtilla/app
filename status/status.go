@@ -54,7 +54,7 @@ type Status interface {
 type status struct {
 	code     int
 	managers []state.Manage
-	Makes
+	//Makes
 }
 
 func newStatus(code int, m ...state.Manage) *status {
@@ -136,7 +136,8 @@ func (st status) panics(s state.State) {
 func (st status) last(s state.State) {
 	s.Push(func(ps state.State) {
 		if !isWritten(ps) {
-			_, _ = ps.Call("write_to_response", fmt.Sprintf(statusText, st.code, http.StatusText(st.code)))
+			code := st.Code()
+			_, _ = ps.Call("write_to_response", fmt.Sprintf(statusText, code, http.StatusText(code)))
 		}
 	})
 }

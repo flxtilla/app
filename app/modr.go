@@ -17,7 +17,8 @@ type modr struct {
 	Testing     bool
 }
 
-// DefaultModr returns a default Modr.
+// DefaultModr returns a default Modr to manage Development, Production, and
+// Testing modes.
 func DefaultModr() Modr {
 	return &modr{true, false, false}
 }

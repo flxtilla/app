@@ -1,34 +1,47 @@
-package route
+package route_test
 
-/*
 import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/thrisp/flotilla/app"
+	"github.com/thrisp/flotilla/route"
+	"github.com/thrisp/flotilla/state"
 )
 
-func one(c Ctx) {}
+func AppForTest(t *testing.T, name string, conf ...app.ConfigurationFn) *app.App {
+	conf = append(conf, app.Mode("Testing", true))
+	a := app.New(name, conf...)
+	err := a.Configure()
+	if err != nil {
+		t.Errorf("Error in app configuration: %s", err.Error())
+	}
+	return a
+}
 
-func two(c Ctx) {}
+func one(s state.State) {}
 
-func three(c Ctx) {}
+func two(s state.State) {}
+
+func three(s state.State) {}
 
 func TestRoute(t *testing.T) {
-	r1 := NewRoute(defaultRouteConf("GET", "/one/:route", []Manage{one, two}))
+	r1 := route.New(route.DefaultRouteConf("GET", "/one/:route", []state.Manage{one, two}))
 
-	r2 := NewRoute(defaultRouteConf("GET", "/two/:route", []Manage{one, two}))
+	r2 := route.New(route.DefaultRouteConf("GET", "/two/:route", []state.Manage{one, two}))
 	r2.Configure(
-		func(r *Route) error {
-			r.name = "NamedRoute"
+		func(r *route.Route) error {
+			r.Rename("NamedRoute")
 			return nil
 		},
 	)
 
-	r3 := NewRoute(staticRouteConf("GET", "/stc/*filepath", []Manage{three}))
+	r3 := route.New(route.StaticRouteConf("GET", "/stc/*filepath", []state.Manage{three}))
 
-	r4 := NewRoute(defaultRouteConf("POST", "/random/route/with/:param", []Manage{one, two}))
+	r4 := route.New(route.DefaultRouteConf("POST", "/random/route/with/:param", []state.Manage{one, two}))
 
-	a := testApp(t, "testroute")
+	a := AppForTest(t, "testroute")
 
 	a.Manage(r1)
 	a.Manage(r2)
@@ -47,7 +60,7 @@ func TestRoute(t *testing.T) {
 		t.Errorf(`Route names were [%s], but should be ["\one\{p}\get", "NamedRoute", "\stc\{s}\get", "\random\route\with\{p}\post"]`, names)
 	}
 
-	rts := a.Routes()
+	rts := a.Blueprints.Map()
 
 	for _, key := range keys {
 		if _, ok := rts[key]; !ok {
@@ -68,4 +81,5 @@ func TestRoute(t *testing.T) {
 		t.Errorf(`Urls were [%s], but should be [/one/parameter_one/,/two/parameter_two/,/stc/static/file/path/splat,/random/route/with/a_parameter]`, urls)
 	}
 }
-*/
+
+func TestRoutes(t *testing.T) {}

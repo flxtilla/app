@@ -1,11 +1,15 @@
 package app
 
-/*
-import "testing"
+import (
+	"testing"
+
+	"github.com/thrisp/flotilla/state"
+	"github.com/thrisp/flotilla/txst"
+)
 
 var fauxconf bool
 
-func FauxConf() Configuration {
+func FauxConf() ConfigurationFn {
 	return func(a *App) error {
 		fauxconf = true
 		return nil
@@ -13,49 +17,47 @@ func FauxConf() Configuration {
 }
 
 func TestConfiguration(t *testing.T) {
-	a := testApp(
+	a := AppForTest(
 		t,
 		"configurationTest",
 		Mode("prodnnuction", true),
-		EnvItem("value:set", "section_value:set"),
+		Store("value:set", "section_value:set"),
 		FauxConf(),
 	)
 
-	var testmodes *Modes
+	//var testmodes *Modes
 
-	var envval, envsectionval *StoreItem
+	//var envval, envsectionval store.StoreItem
 
-	var non bool
+	//var non bool
 
-	confTester := func(t *testing.T) Manage {
-		return func(c Ctx) {
-			tm, _ := c.Call("mode")
-			testmodes = tm.(*Modes)
-			if !testmodes.Development || !testmodes.Testing || testmodes.Production {
-				t.Errorf("Modes not properly set: %+v", testmodes)
-			}
-			envval, _ = CheckStore(c, "VALUE")
-			if envval.Value != "set" {
-				t.Errorf(`EnvItem was not set properly; was EnvItem("value:set"), but retrieved Store value is %s`, envval)
-			}
-			envsectionval, _ = CheckStore(c, "SECTION_VALUE")
-			if envsectionval.Value != "set" {
-				t.Errorf(`EnvItem was not set properly; was EnvItem("section_value:set"), but retrieved Store value is %s`, envsectionval)
-			}
-			_, non = CheckStore(c, "NON")
-			if non {
-				t.Errorf(`A value was found in the store that should not exist.`)
-			}
-
+	confTester := func(t *testing.T) state.Manage {
+		return func(s state.State) {
+			//tm, _ := c.Call("mode")
+			//testmodes = tm.(*Modes)
+			//if !testmodes.Development || !testmodes.Testing || testmodes.Production {
+			//	t.Errorf("Modes not properly set: %+v", testmodes)
+			//}
+			//envval, _ = CheckStore(c, "VALUE")
+			//if envval.Value != "set" {
+			//	t.Errorf(`EnvItem was not set properly; was EnvItem("value:set"), but retrieved Store value is %s`, envval)
+			//}
+			//envsectionval, _ = CheckStore(c, "SECTION_VALUE")
+			//if envsectionval.Value != "set" {
+			//	t.Errorf(`EnvItem was not set properly; was EnvItem("section_value:set"), but retrieved Store value is %s`, envsectionval)
+			//}
+			//_, non = CheckStore(c, "NON")
+			//if non {
+			//	t.Errorf(`A value was found in the store that should not exist.`)
+			//}
 		}
 	}
 
-	exp, _ := NewExpectation(200, "GET", "/configuration", confTester)
+	exp, _ := txst.NewExpectation(200, "GET", "/configuration", confTester)
 
-	SimplePerformer(t, a, exp).Perform()
+	txst.SimplePerformer(t, a, exp).Perform()
 
-	if !fauxconf {
-		t.Errorf(`Arbitrary Configuration function FauxConf was not properly set or used.`)
-	}
+	//if !fauxconf {
+	//	t.Errorf(`Arbitrary Configuration function FauxConf was not properly set or used.`)
+	//}
 }
-*/

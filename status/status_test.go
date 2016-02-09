@@ -96,9 +96,28 @@ func Custom418(s state.State) {
 	s.Call("serve_plain", 418, "I AM TEAPOT :: 418")
 }
 
-func customStatus(t *testing.T, method string, expects string, status int, m state.Manage) {
+type mockStatus struct {
+	code     int
+	managers []state.Manage
+}
+
+func (s *mockStatus) Code() int {
+	return s.code
+}
+
+func (s *mockStatus) Managers() []state.Manage {
+	return s.managers
+}
+
+func customStatus(t *testing.T, method string, expects string, status int, m state.Manage, raw bool) {
 	a := AppForTest(t, "customstatus")
-	a.STATUS(status, m)
+
+	if raw {
+		a.STATUS(status, m)
+	} else {
+		st := &mockStatus{status, []state.Manage{m}}
+		a.SetStatus(st)
+	}
 
 	exp, _ := txst.NewExpectation(
 		status,
@@ -123,7 +142,7 @@ func customStatus(t *testing.T, method string, expects string, status int, m sta
 
 func TestCustomStatus(t *testing.T) {
 	for _, m := range txst.METHODS {
-		customStatus(t, m, "I AM NOT FOUND :: 404", 404, Custom404)
-		customStatus(t, m, "I AM TEAPOT :: 418", 418, Custom418)
+		customStatus(t, m, "I AM NOT FOUND :: 404", 404, Custom404, false)
+		customStatus(t, m, "I AM TEAPOT :: 418", 418, Custom418, true)
 	}
 }

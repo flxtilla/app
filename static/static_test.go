@@ -1,4 +1,4 @@
-package static
+package static_test
 
 import (
 	"net/http/httptest"
@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/thrisp/flotilla/app"
-	"github.com/thrisp/flotilla/asset"
 	"github.com/thrisp/flotilla/state"
 	"github.com/thrisp/flotilla/static/resources"
 	"github.com/thrisp/flotilla/txst"
@@ -19,13 +18,6 @@ func testLocation() string {
 	ld, _ := filepath.Abs(wd)
 	return ld
 }
-
-var TestAsset asset.AssetFS = asset.NewAssetFS(
-	resources.Asset,
-	resources.AssetDir,
-	resources.AssetNames,
-	"",
-)
 
 func AppForTest(t *testing.T, name string, conf ...app.ConfigurationFn) *app.App {
 	conf = append(conf, app.Mode("Testing", true))
@@ -41,19 +33,21 @@ func TestStatic(t *testing.T) {
 	a := AppForTest(
 		t,
 		"testStatic",
-		app.Assets(TestAsset),
+		app.Assets(resources.ResourceFS),
 	)
 
-	a.STATIC("/resources/static/*filepath", "resources", a.Environment)
+	a.STATIC(a.Environment, "/resources/static/*filepath", "resources")
+
+	a.StaticDirs("resources")
 
 	txst.ZeroExpectationPerformer(t, a, 200, "GET", "/resources/static/css/static.css").Perform()
 
-	exp, _ := txst.NewExpectation(
+	exp1, _ := txst.NewExpectation(
 		200,
 		"GET",
 		"/static/css/static.css",
 	)
-	exp.SetPost(
+	exp1.SetPost(
 		func(t *testing.T, r *httptest.ResponseRecorder) {
 			b := r.Body.String()
 			if !strings.Contains(b, "test css file") {
@@ -61,10 +55,25 @@ func TestStatic(t *testing.T) {
 			}
 		},
 	)
-	exp.SetPreRegister(true)
-	txst.SimplePerformer(t, a, exp).Perform()
+	exp1.SetPreRegister(true)
 
-	txst.ZeroExpectationPerformer(t, a, 200, "GET", "/static/css/css/css/css_asset.css").Perform()
+	exp2, _ := txst.NewExpectation(
+		200,
+		"GET",
+		"/static/css/css/css/css_asset.css",
+	)
+	exp2.SetPost(
+		func(t *testing.T, r *httptest.ResponseRecorder) {
+			b := r.Body.String()
+			expected := "/* Test binary css asset */"
+			if !strings.Contains(b, expected) {
+				t.Error(`Test css asset file did not return %s`, expected)
+			}
+		},
+	)
+	exp2.SetPreRegister(true)
+	txst.MultiPerformer(t, a, exp1, exp2).Perform()
+
 	txst.ZeroExpectationPerformer(t, a, 404, "GET", "/static/css/no.css").Perform()
 }
 

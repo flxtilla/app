@@ -4,44 +4,44 @@ package app
 import (
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/thrisp/flotilla/session"
+	"github.com/thrisp/flotilla/state"
+	"github.com/thrisp/flotilla/txst"
 )
 
 func TestCookieExtension(t *testing.T) {
-	cookieTester := func(t *testing.T) Manage {
-		return func(c Ctx) {
-			var err error
+	cookieTester := func(t *testing.T) state.Manage {
+		return func(s state.State) {
+				var err error
 
-			_, err = c.Call("cookie", false, "set-cookie", "cookie value", []interface{}{1000000, "/path", "domain.com", true, true})
-			_, err = c.Call("cookie", false, "set-cookie", "cookie value", []interface{}{-1, "/path", "domain.com", true, true})
-			if err != nil {
-				t.Errorf("Cookie was not properly set: %s", err.Error())
-			}
+				_, err = c.Call("cookie", false, "set-cookie", "cookie value", []interface{}{1000000, "/path", "domain.com", true, true})
+				_, err = c.Call("cookie", false, "set-cookie", "cookie value", []interface{}{-1, "/path", "domain.com", true, true})
+				if err != nil {
+					t.Errorf("Cookie was not properly set: %s", err.Error())
+				}
 
-			_, err = c.Call("securecookie", "securecookie", "secure cookie value", nil)
-			if err != nil {
-				t.Errorf("Secure cookie was not properly set: %s", err.Error())
-			}
+				_, err = c.Call("securecookie", "securecookie", "secure cookie value", nil)
+				if err != nil {
+					t.Errorf("Secure cookie was not properly set: %s", err.Error())
+				}
 
-			ckes, _ := c.Call("cookies")
-			cone := ckes.(map[string]*http.Cookie)["GetCookie1"]
-			if cone.Value != "cookie value" {
-				t.Errorf(`Expected cookie value "cookie value" from cookies, but received %s`, cone)
-			}
+				ckes, _ := c.Call("cookies")
+				cone := ckes.(map[string]*http.Cookie)["GetCookie1"]
+				if cone.Value != "cookie value" {
+					t.Errorf(`Expected cookie value "cookie value" from cookies, but received %s`, cone)
+				}
 
-			rckes, _ := c.Call("readcookies")
-			ctwo := rckes.(map[string]string)["GetCookie2"]
-			if ctwo != "cookie value" {
-				t.Errorf(`Expected cookie value "cookie value" from readcookies, but received %s`, ctwo)
-			}
+				rckes, _ := c.Call("readcookies")
+				ctwo := rckes.(map[string]string)["GetCookie2"]
+				if ctwo != "cookie value" {
+					t.Errorf(`Expected cookie value "cookie value" from readcookies, but received %s`, ctwo)
+				}
 		}
 	}
 
-	exp, _ := NewExpectation(
+	exp, _ := txst.txst.NewExpectation(
 		200,
 		"GET",
 		"/cookies_test",
@@ -52,38 +52,38 @@ func TestCookieExtension(t *testing.T) {
 	v := securevalue("Flotilla;Secret;Key;1", "cookie value")
 	exp.Request().AddCookie(&http.Cookie{Name: "GetCookie2", Value: v})
 
-	app := testApp(t, "testCookieExtension")
+	app := AppForTest(t, "testCookieExtension")
 
-	SimplePerformer(t, app, exp).Perform()
+	txst.txst.SimplePerformer(t, app, exp).Perform()
 }
 
 func TestResponseExtension(t *testing.T) {
-	app := testApp(t, "testResponseExtension")
-	exp1, _ := NewExpectation(
+	app := AppForTest(t, "testResponseExtension")
+	exp1, _ := txst.NewExpectation(
 		406,
 		"GET",
 		"/rt1/",
 		func(t *testing.T) Manage {
-			return func(c Ctx) { c.Call("abort", 406) }
+			return func(s state.State) { c.Call("abort", 406) }
 		},
 	)
-	exp2, _ := NewExpectation(
+	exp2, _ := txst.NewExpectation(
 		406,
 		"GET",
 		"/rt2/",
 		func(t *testing.T) Manage {
-			return func(c Ctx) {
+			return func(s state.State) {
 				c.Call("headerwrite", 406)
 				c.Call("headernow")
 			}
 		},
 	)
-	exp3, _ := NewExpectation(
+	exp3, _ := txst.NewExpectation(
 		200,
 		"GET",
 		"/rt3/",
 		func(t *testing.T) Manage {
-			return func(c Ctx) {
+			return func(s state.State) {
 				c.Call("headermodify", "add", []string{"From", "testing"})
 				c.Call("writetoresponse", "written from testing")
 				c.Call("headernow")
@@ -104,12 +104,12 @@ func TestResponseExtension(t *testing.T) {
 			}
 		},
 	)
-	exp4, _ := NewExpectation(
+	exp4, _ := txst.NewExpectation(
 		200,
 		"GET",
 		"/rt4/",
 		func(t *testing.T) Manage {
-			return func(c Ctx) {
+			return func(s state.State) {
 				c.Call("serveplain", 200, "serveplain from testing")
 			}
 		},
@@ -121,12 +121,12 @@ func TestResponseExtension(t *testing.T) {
 			}
 		},
 	)
-	exp5, _ := NewExpectation(
+	exp5, _ := txst.NewExpectation(
 		303,
 		"GET",
 		"/rt5/",
 		func(t *testing.T) Manage {
-			return func(c Ctx) {
+			return func(s state.State) {
 				c.Call("redirect", 303, "/redirectedto")
 			}
 		},
@@ -139,105 +139,52 @@ func TestResponseExtension(t *testing.T) {
 			}
 		},
 	)
-	MultiPerformer(t, app, exp1, exp2, exp3, exp4, exp5).Perform()
+	txst.MultiPerformer(t, app, exp1, exp2, exp3, exp4, exp5).Perform()
 }
 
 func TestSessionExtension(t *testing.T) {
-	app := testApp(t, "testSessionExtension")
-	exp, _ := NewExpectation(
+	app := AppForTest(t, "testSessionExtension")
+	exp, _ := txst.NewExpectation(
 		200,
 		"GET",
 		"/st1",
 		func(t *testing.T) Manage {
-			return func(c Ctx) {
-				s := Session(c)
-				if _, ok := s.(session.SessionStore); !ok {
-					t.Errorf("Session returned from session fxtension was not type session.SessionStore")
-				}
-				c.Call("setsession", "test", "value")
-				v1, _ := c.Call("getsession", "test")
-				v := v1.(string)
-				if v != "value" {
-					t.Errorf(`session key returned %s, not "value"`, v)
-				}
-				c.Call("deletesession", "test")
-				v2, _ := c.Call("getsession", "test")
-				if v2 != nil {
-					t.Errorf(`deleted session item with key "test" returned %s, but should be nil`, v2)
-				}
+			return func(s state.State) {
+				//s := Session(c)
+				//if _, ok := s.(session.SessionStore); !ok {
+				//	t.Errorf("Session returned from session fxtension was not type session.SessionStore")
+				//}
+				//c.Call("setsession", "test", "value")
+				//v1, _ := c.Call("getsession", "test")
+				//v := v1.(string)
+				//if v != "value" {
+				//	t.Errorf(`session key returned %s, not "value"`, v)
+				//}
+				//c.Call("deletesession", "test")
+				//v2, _ := c.Call("getsession", "test")
+				//if v2 != nil {
+				//	t.Errorf(`deleted session item with key "test" returned %s, but should be nil`, v2)
+				//}
 			}
 		},
 	)
-	SimplePerformer(t, app, exp).Perform()
+	txst.SimplePerformer(t, app, exp).Perform()
 }
+*/
 
-func TestFlashExtension(t *testing.T) {
-	a := testApp(t, "testFlash")
-	exp1, _ := NewExpectation(
-		200,
-		"GET",
-		"/ft1/",
-		func(t *testing.T) Manage {
-			return func(c Ctx) {
-				c.Call("flash", "testing", "test flash message")
-			}
-		},
-	)
-	exp2, _ := NewExpectation(
-		200,
-		"GET",
-		"/ft2/",
-		func(t *testing.T) Manage {
-			return func(c Ctx) {
-				fl := Flshr(c)
-				v := fl.Write("testing")
-				if !strings.Contains(v[0], "test flash message") {
-					t.Errorf(`flash messaging expected "test flash message" as first message, but it was %s`, v[0])
-				}
-				fl.WriteAll()
-				c.Call("flash", "testing_two", "second test flash message")
-			}
-		},
-	)
-	exp3, _ := NewExpectation(
-		200,
-		"GET",
-		"/ft3/",
-		func(t *testing.T) Manage {
-			return func(c Ctx) {
-				fl := Flshr(c)
-				nv := fl.Write("testing")
-				if nv != nil {
-					t.Errorf(`flasher wrote %s for category "testing", but was expecting a nil value`, nv)
-				}
-				v := fl.WriteAll()
-				expected := v["testing_two"][0]
-				if !strings.Contains(expected, "second test flash message") {
-					t.Errorf(`flash messaging expected "second test flash message" as first message for "testing_two", but it was %s`, expected)
-				}
-				v2 := fl.Write("testing_two")
-				if v2 != nil {
-					t.Errorf(`flasher wrote %s for category "testing_two", but was expecting a nil value`, v2)
-				}
-			}
-		},
-	)
-
-	SessionPerformer(t, a, exp1, exp2, exp3).Perform()
-}
-
+/*
 func TestCtxExtension(t *testing.T) {
-	app := testApp(t, "testCtxExtensions")
+	app := AppForTest(t, "testCtxExtensions")
 	type td struct {
 		a string
 		b int
 	}
-	exp1, _ := NewExpectation(
+	exp1, _ := txst.NewExpectation(
 		200,
 		"GET",
 		"/ct1",
 		func(t *testing.T) Manage {
-			return func(c Ctx) {
+			return func(s state.State) {
 				c.Call("set", "test", &td{a: "data", b: 1})
 				d, _ := c.Call("get", "test")
 				if d, ok := d.(*td); ok {
@@ -253,12 +200,12 @@ func TestCtxExtension(t *testing.T) {
 		},
 	)
 
-	exp2, _ := NewExpectation(
+	exp2, _ := txst.NewExpectation(
 		200,
 		"GET",
 		"/ct2/",
 		func(t *testing.T) Manage {
-			return func(c Ctx) {
+			return func(s state.State) {
 				stor, _ := c.Call("env", "store")
 				if _, ok := stor.(Store); !ok {
 					t.Errorf(`extensions: env("store") expected type Store, but was %+v`, stor)
@@ -278,14 +225,15 @@ func TestCtxExtension(t *testing.T) {
 			}
 		},
 	)
-	MultiPerformer(t, app, exp1, exp2).Perform()
+	txst.MultiPerformer(t, app, exp1, exp2).Perform()
 }
-
-func testextensionzero(c Ctx) string {
+*/
+/*
+func testextensionzero(s state.State) string {
 	return "RETURNED FROM TESTEXTENSIONZERO"
 }
 
-func testextensionone(c Ctx) string {
+func testextensionone(s state.State) string {
 	return "RETURNED FROM TESTEXTENSIONONE"
 }
 
@@ -297,18 +245,18 @@ var exts map[string]interface{} = map[string]interface{}{
 var ExtensionForTest Fxtension = MakeFxtension("testextension", exts)
 
 func TestAddedExtension(t *testing.T) {
-	app := testApp(
+	app := AppForTest(
 		t,
 		"testAddedExtension",
 		Extensions(ExtensionForTest),
 	)
 
-	exp, _ := NewExpectation(
+	exp, _ := txst.NewExpectation(
 		200,
 		"GET",
 		"/extension",
 		func(t *testing.T) Manage {
-			return func(c Ctx) {
+			return func(s state.State) {
 				var ret1, ret2 string
 				r1, _ := c.Call("ext0")
 				ret1 = r1.(string)
@@ -324,6 +272,6 @@ func TestAddedExtension(t *testing.T) {
 		},
 	)
 
-	SimplePerformer(t, app, exp).Perform()
+	txst.SimplePerformer(t, app, exp).Perform()
 }
 */

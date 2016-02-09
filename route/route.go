@@ -33,6 +33,8 @@ func New(conf ...RouteConf) *Route {
 	return rt
 }
 
+// RouteConf is a route configuration function type taking a Route instance and
+// returning an error.
 type RouteConf func(*Route) error
 
 // Configure runs the given functions to configure the Route instance.
@@ -44,8 +46,8 @@ func (rt *Route) Configure(conf ...RouteConf) error {
 	return err
 }
 
-// DefaultRouteConf returns a route congiration function for default method, base
-// and Managers.
+// DefaultRouteConf returns a route configuration function for method, path,
+// and managers.
 func DefaultRouteConf(method string, path string, managers []state.Manage) RouteConf {
 	return func(rt *Route) error {
 		rt.Method = method
@@ -55,7 +57,8 @@ func DefaultRouteConf(method string, path string, managers []state.Manage) Route
 	}
 }
 
-// StaticRouteConf returns default configuration for a static route.
+// StaticRouteConf returns default route configuration function for a static
+// route method, path, and managers.
 func StaticRouteConf(method string, path string, managers []state.Manage) RouteConf {
 	return func(rt *Route) error {
 		rt.Method = method
@@ -86,7 +89,7 @@ func (rt *Route) Name() string {
 	return rt.name
 }
 
-// Rename will rename the Route.
+// Rename will rename the Route to the provided string.
 func (rt *Route) Rename(name string) {
 	rt.name = name
 }

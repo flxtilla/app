@@ -57,6 +57,7 @@ func storeQueryFunc(a *App) func(state.State) store.Store {
 	}
 }
 
+// Provide a State, Stored returns a store.Store instance.
 func Stored(s state.State) store.Store {
 	if st, err := s.Call("store"); err == nil {
 		return st.(store.Store)
@@ -64,6 +65,8 @@ func Stored(s state.State) store.Store {
 	return nil
 }
 
+// Provided a State, and a key string, StoreString queries the associated Store
+// returning the value corresponding to the key, or a nil string.
 func StoredString(s state.State, key string) string {
 	if st := Stored(s); st != nil {
 		return st.String(key)
@@ -84,7 +87,7 @@ func routesMapFunc(a *App) func() map[string]*route.Route {
 	}
 }
 
-var NoUrl = xrr.NewXrror("Unable to get url for route %s with params %s.").Out
+var noUrl = xrr.NewXrror("Unable to get url for route %s with params %s.").Out
 
 func urlForFunc(a *App) func(state.State, string, bool, []string) (string, error) {
 	routeFn := routesMapFunc(a)
@@ -99,7 +102,7 @@ func urlForFunc(a *App) func(state.State, string, bool, []string) (string, error
 				return routeUrl.String(), nil
 			}
 		}
-		return "", NoUrl(routeName, params)
+		return "", noUrl(routeName, params)
 	}
 }
 
@@ -122,6 +125,10 @@ var extensions = []extension.Extension{
 	se.Extension,
 }
 
+// Provided an App instance, BuiltInExtension returns a default
+// extension.Extension that includes extensions for cookies, responses, and
+// sessions, as well as several assorted App & State dependent extension
+// functions.
 func BuiltInExtension(a *App) extension.Extension {
 	ext := extension.New("BuiltIn_Extension")
 	ext.Extend(stateExtension(a))
