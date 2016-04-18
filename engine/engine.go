@@ -7,8 +7,12 @@ import (
 	"github.com/thrisp/flotilla/xrr"
 )
 
+// A routing Rule requires a http.ResponseWriter, *http.Request, and a Result
+// instance.
 type Rule func(http.ResponseWriter, *http.Request, *Result)
 
+// The Engine interface encapsulates routing management and satisfies the
+// net/http ServeHTTP interface function.
 type Engine interface {
 	Handle(string, string, Rule)
 	ServeHTTP(http.ResponseWriter, *http.Request)
@@ -32,6 +36,8 @@ func defaultConf() *conf {
 	}
 }
 
+// Provided a default status Rule, DefaultEngine returns a default engine
+// instance.
 func DefaultEngine(status Rule) *engine {
 	return &engine{
 		conf:       defaultConf(),
@@ -39,6 +45,8 @@ func DefaultEngine(status Rule) *engine {
 	}
 }
 
+// The default engine Handle function takes method string, a path string, and a
+// Rule.
 func (e *engine) Handle(method string, path string, r Rule) {
 	if method != "STATUS" && path[0] != '/' {
 		panic("path must begin with '/'")
@@ -142,6 +150,7 @@ func (e *engine) rcvr(rw http.ResponseWriter, rq *http.Request) {
 	}
 }
 
+// The default engine ServeHTTP function.
 func (e *engine) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
 	defer e.rcvr(rw, rq)
 	rslt := e.lookup(rq.Method, rq.URL.Path)

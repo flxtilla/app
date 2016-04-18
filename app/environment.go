@@ -12,7 +12,7 @@ import (
 	"github.com/thrisp/flotilla/template"
 )
 
-// Environemnt is an interface for central storage and access of crucial app
+// Environment is an interface for central storage and access of crucial app
 // functionality. These include State creation, Logging, and app Mode
 // determination and setting, in addition to package external Assets,
 // Extension, Session, Static, Store, and Templates.
@@ -59,7 +59,7 @@ func newEnvironment(app *App) Environment {
 func defaultStore() store.Store {
 	s := store.New()
 	s.Add("upload_size", "10000000")
-	s.Add("secret_key", "Flotilla;Secret;Key;1")
+	s.Add("secret_key", "Flotilla;Secret;Key:1")
 	s.Add("session_cookiename", "session")
 	s.Add("session_lifetime", "2629743")
 	s.Add("working_path", workingPath)

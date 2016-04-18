@@ -54,7 +54,6 @@ type Status interface {
 type status struct {
 	code     int
 	managers []state.Manage
-	//Makes
 }
 
 func newStatus(code int, m ...state.Manage) *status {

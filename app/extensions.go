@@ -17,8 +17,12 @@ func mkFunction(k string, v interface{}) extension.Function {
 	return extension.NewFunction(k, v)
 }
 
+// RequestFiles is a map keyed to string containing values of array of
+// mulitpart.FileHeader.
 type RequestFiles map[string][]*multipart.FileHeader
 
+// Files extracts uploaded files from http.Request, specifically though
+// request.MultipartForm.File.
 func Files(s state.State) RequestFiles {
 	f, err := s.Call("files")
 	if err == nil {

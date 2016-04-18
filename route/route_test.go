@@ -8,6 +8,7 @@ import (
 	"github.com/thrisp/flotilla/app"
 	"github.com/thrisp/flotilla/route"
 	"github.com/thrisp/flotilla/state"
+	"github.com/thrisp/flotilla/txst"
 )
 
 func AppForTest(t *testing.T, name string, conf ...app.ConfigurationFn) *app.App {
@@ -39,7 +40,9 @@ func TestRoute(t *testing.T) {
 
 	r3 := route.New(route.StaticRouteConf("GET", "/stc/*filepath", []state.Manage{three}))
 
-	r4 := route.New(route.DefaultRouteConf("POST", "/random/route/with/:param", []state.Manage{one, two}))
+	r4 := route.New(route.StaticRouteConf("GET", "/stc2", []state.Manage{three}))
+
+	r5 := route.New(route.DefaultRouteConf("POST", "/random/route/with/:param", []state.Manage{one, two}))
 
 	a := AppForTest(t, "testroute")
 
@@ -47,22 +50,30 @@ func TestRoute(t *testing.T) {
 	a.Manage(r2)
 	a.Manage(r3)
 	a.Manage(r4)
+	a.Manage(r5)
 
-	name1, name2, name3, name4 := r1.Name(), r2.Name(), r3.Name(), r4.Name()
+	name1, name2, name3, name4, name5 := r1.Name(), r2.Name(), r3.Name(), r4.Name(), r5.Name()
 
-	names := strings.Join([]string{name1, name2, name3, name4}, ",")
+	names := strings.Join([]string{name1, name2, name3, name4, name5}, ",")
 
-	keys := []string{name1, name2, name3, name4}
+	keys := []string{name1, name2, name3, name4, name5}
 
-	expected := strings.Join([]string{`\one\{p}\get`, `NamedRoute`, `\stc\{s}\get`, `\random\route\with\{p}\post`}, ",")
+	expected := strings.Join([]string{`\one\{p}\get`, `NamedRoute`, `\stc\{s}\get`, `\stc2\{s}\get`, `\random\route\with\{p}\post`}, ",")
 
 	if bytes.Compare([]byte(names), []byte(expected)) != 0 {
-		t.Errorf(`Route names were [%s], but should be ["\one\{p}\get", "NamedRoute", "\stc\{s}\get", "\random\route\with\{p}\post"]`, names)
+		t.Errorf(`Route names were [%s], but should be %s`, names, expected)
 	}
 
 	rts := a.Blueprints.Map()
 
+	if rt, err := a.GetRoute("NoRoute"); err == nil {
+		t.Errorf(`Route was found where no route should be: %v`, rt)
+	}
+
 	for _, key := range keys {
+		if _, err := a.GetRoute(key); err != nil {
+			t.Errorf(`%s was not found in App.Routes().GetRoute(%s)`, key, key)
+		}
 		if _, ok := rts[key]; !ok {
 			t.Errorf(`%s was not found in App.Routes()`, key)
 		}
@@ -71,15 +82,16 @@ func TestRoute(t *testing.T) {
 	url1, _ := r1.Url("parameter_one/")
 	url2, _ := r2.Url("parameter_two", "v1=another", "also=this", "with")
 	url3, _ := r3.Url("static/file/path/splat")
-	url4, _ := r4.Url("a_parameter")
+	url4, _ := r4.Url("static/file/path/splat")
+	url5, _ := r5.Url("a_parameter")
 
-	urls := strings.Join([]string{url1.String(), url2.String(), url3.String(), url4.String()}, ",")
+	urls := strings.Join([]string{url1.String(), url2.String(), url3.String(), url4.String(), url5.String()}, ",")
 
-	expected = "/one/parameter_one/,/two/parameter_two?v1%3Danother&also%3Dthis&value3%3Dwith,/stc/static/file/path/splat,/random/route/with/a_parameter"
+	expected = "/one/parameter_one/,/two/parameter_two?v1%3Danother&also%3Dthis&value3%3Dwith,/stc/static/file/path/splat,/stc2/static/file/path/splat,/random/route/with/a_parameter"
 
 	if bytes.Compare([]byte(urls), []byte(expected)) != 0 {
-		t.Errorf(`Urls were [%s], but should be [/one/parameter_one/,/two/parameter_two/,/stc/static/file/path/splat,/random/route/with/a_parameter]`, urls)
+		t.Errorf(`Urls were [%s], but should be %s`, urls, expected)
 	}
-}
 
-func TestRoutes(t *testing.T) {}
+	txst.ZeroExpectationPerformer(t, a, 200, "GET", "/one/test").Perform()
+}

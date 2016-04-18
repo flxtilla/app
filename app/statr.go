@@ -39,10 +39,14 @@ func defaultStateMakerFunction(a *App) state.Make {
 	}
 }
 
+// The default statr StateFunction taking an App instance and returning a
+// state.Make function.
 func (d *defaultStatr) StateFunction(a *App) state.Make {
 	return d.fn(a)
 }
 
+// The default statr SwapStateFunction for changing the statr StateMaker
+// function.
 func (d *defaultStatr) SwapStateFunction(fn StateMakerFn) {
 	d.fn = fn
 }

@@ -52,6 +52,13 @@ func TestStore(t *testing.T) {
 			return func(s state.State) {
 				stor := stored(s)
 
+				stor.Add("ADDED", "TRUE")
+
+				adv := stor.Bool("ADDED")
+				if adv != true {
+					t.Errorf(`Store "ADDED" was not "true", but was %t`, adv)
+				}
+
 				noRead := stor.String("UNREAD_VALUE")
 				if noRead != "" {
 					t.Errorf(`Store item value exists, but should not.`)
@@ -104,21 +111,20 @@ func TestStore(t *testing.T) {
 
 				sv := stor.String("SECTION_BLUE")
 				if sv != "bondi" {
-					t.Errorf(`Store item value was not "bondi", but was %s`, sv)
+					t.Errorf(`Store item from section value was not "bondi", but was %s`, sv)
 				}
 
 				lv := stor.List("CONFLIST")
 				have := strings.Join(lv, ",")
 				expected := strings.Join([]string{"a", "b", "c", "d"}, ",")
 				if bytes.Compare([]byte(have), []byte(expected)) != 0 {
-					t.Errorf(`Store item value was not [a,b,c,d], but was [%s]`, have)
+					t.Errorf(`Store "CONFLIST" was not [a,b,c,d], but was [%s]`, have)
 				}
 
-				//confAsset, exists := CheckStore(s, "CONFASSET")
-				//val = confAsset.String()
-				//if val != "FROM_ASSET" {
-				//	t.Errorf(`Store item value from assets configuration was not "FROM_ASSET", but was %s`, val)
-				//}
+				av := stor.String("CONFASSET")
+				if av != "FROM_ASSET" {
+					t.Errorf(`Store "CONFASSET" was not "FROM_ASSET", but was %s`, av)
+				}
 			}
 		})
 

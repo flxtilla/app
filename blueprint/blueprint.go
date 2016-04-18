@@ -12,7 +12,6 @@ import (
 	"github.com/thrisp/flotilla/state"
 	"github.com/thrisp/flotilla/static"
 	"github.com/thrisp/flotilla/status"
-	//"github.com/thrisp/flotilla/xrr"
 )
 
 // Blueprint is an interface for common route bundling in a flotilla app.
@@ -57,16 +56,22 @@ func (s *setupstate) runDeferred() {
 	s.deferred = nil
 }
 
+// The default setupstate Registered function, returning a boolean value.
 func (s *setupstate) Registered() bool {
 	return s.registered
 }
 
+// The default setupstate Held function, returning a slice of Route currently held.
 func (s *setupstate) Held() []*route.Route {
 	return s.held
 }
 
+// A HandleFn is any function taking a string method, a string path, and an
+// engine.Rule.
 type HandleFn func(string, string, engine.Rule)
 
+// The Handles interface provides a Handling function of the HandleFn type that
+// may be used and/or passed around by a Blueprint.
 type Handles interface {
 	Handling(string, string, engine.Rule)
 }
@@ -75,14 +80,18 @@ type handles struct {
 	handle HandleFn
 }
 
+// NewHandles returns a default Handles interface, provided a HandleFn.
 func NewHandles(hf HandleFn) Handles {
 	return &handles{hf}
 }
 
+// The default Handles Handling function.
 func (h *handles) Handling(method string, path string, rule engine.Rule) {
 	h.handle(method, path, rule)
 }
 
+// The Makes interface provides a Making function that returns a state.Make
+// function to be used and/or passed around by a Blueprint.
 type Makes interface {
 	Making() state.Make
 }
@@ -91,10 +100,12 @@ type makes struct {
 	makes state.Make
 }
 
+// NewMakes returns a default Makes interface, provided a state.Make function.
 func NewMakes(m state.Make) Makes {
 	return &makes{m}
 }
 
+// The default makes Making function, returning a state.Make function.
 func (m *makes) Making() state.Make {
 	return m.makes
 }
@@ -128,10 +139,14 @@ func newBlueprint(prefix string, h Handles, m Makes) *blueprint {
 	}
 }
 
+// The default blueprint Prefix returns a string useful for identification or
+// path building.
 func (b *blueprint) Prefix() string {
 	return b.prefix
 }
 
+// The default blueprint Exists returns a boolean indicating if the provided
+// Route is managed by the Blueprint.
 func (b *blueprint) Exists(rt *route.Route) bool {
 	for _, r := range b.Routes.All() {
 		if (rt.Path == r.Path) && (rt.Method == r.Method) {
@@ -192,6 +207,9 @@ func manageExists(inside []state.Manage, outside state.Manage) bool {
 	return false
 }
 
+// The default blueprint Use function, takes any number of state.Manage
+// functions. Any route managed by the Blueprint will use these functions, and
+// use them before the Routes own state functions.
 func (b *blueprint) Use(managers ...state.Manage) {
 	for _, manage := range managers {
 		if !manageExists(b.managers, manage) {
@@ -200,6 +218,11 @@ func (b *blueprint) Use(managers ...state.Manage) {
 	}
 }
 
+// The default blueprint UseAt function, taking an integer index and any number
+// of state.Manage functions. Any route managed by the Blueprint will use these
+// functions, and use them before the Routes own state functions. Added state
+// functions are placed at the index provided in the existing Blueprint state
+// function list, or at the end if the index does not exist.
 func (b *blueprint) UseAt(index int, managers ...state.Manage) {
 	if index > len(b.managers) {
 		b.Use(managers...)
@@ -238,16 +261,20 @@ func (b *blueprint) push(register func(), rt *route.Route) {
 	}
 }
 
-// Parent will add the provided blueprints as descendents of the Blueprint.
+// The default blueprint Parent function will add the provided blueprints as
+// descendents of the Blueprint.
 func (b *blueprint) Parent(bs ...Blueprint) {
 	b.descendents = append(b.descendents, bs...)
 }
 
-// Descendents returns an array of Blueprint as direct decendents of the calling Blueprint.
+// The default blueprint Descendents function returns an array of Blueprint as
+// direct decendents of the calling Blueprint.
 func (b *blueprint) Descendents() []Blueprint {
 	return b.descendents
 }
 
+// Teh default blueprint Managers function returns an array of state.Manage
+// functions attached to the Blueprint.
 func (b *blueprint) Managers() []state.Manage {
 	return b.managers
 }
@@ -260,7 +287,6 @@ func reManage(rt *route.Route, b Blueprint) {
 	rt.Managers = ms
 }
 
-//
 func registerRouteConf(b *blueprint) route.RouteConf {
 	return func(rt *route.Route) error {
 		reManage(rt, b)
@@ -271,7 +297,7 @@ func registerRouteConf(b *blueprint) route.RouteConf {
 	}
 }
 
-//
+// MethodManager provides an interface for route management.
 type MethodManager interface {
 	Manage(rt *route.Route)
 	GET(string, ...state.Manage)
@@ -285,7 +311,7 @@ type MethodManager interface {
 	STATUS(int, ...state.Manage)
 }
 
-// Manage adds a route to the Blueprint.
+// The default blueprint method manager Manage function adds a route to the Blueprint.
 func (b *blueprint) Manage(rt *route.Route) {
 	register := func() {
 		rt.Configure(registerRouteConf(b))
@@ -298,37 +324,37 @@ func (b *blueprint) Manage(rt *route.Route) {
 	b.push(register, rt)
 }
 
-//
+// The default blueprint GET method manager function.
 func (b *blueprint) GET(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("GET", path, managers)))
 }
 
-//
+// The default blueprint method manager POST function.
 func (b *blueprint) POST(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("POST", path, managers)))
 }
 
-//
+// The default blueprint method manager DELETE function.
 func (b *blueprint) DELETE(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("DELETE", path, managers)))
 }
 
-//
+// The default blueprint method manager PATCH function.
 func (b *blueprint) PATCH(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("PATCH", path, managers)))
 }
 
-//
+// The default blueprint method manager PUT function.
 func (b *blueprint) PUT(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("PUT", path, managers)))
 }
 
-//
+// The default blueprint method manager OPTIONS function.
 func (b *blueprint) OPTIONS(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("OPTIONS", path, managers)))
 }
 
-//
+// The default blueprint method manager HEAD function.
 func (b *blueprint) HEAD(path string, managers ...state.Manage) {
 	b.Manage(route.New(route.DefaultRouteConf("HEAD", path, managers)))
 }
@@ -340,7 +366,8 @@ func dropTrailing(path string, trailing string) string {
 	return path
 }
 
-//
+// The default blueprint STATIC function, taking a static.Static interface,
+// path string, and any number of directories.
 func (b *blueprint) STATIC(s static.Static, path string, dirs ...string) {
 	if len(dirs) > 0 {
 		for _, dir := range dirs {
@@ -367,7 +394,8 @@ func (b *blueprint) statusExtension(s state.State) {
 	s.Extend(b.StateStatusExtension())
 }
 
-//
+// The default blueprint STATUS function, taking an integer status code and any
+// number of state.Manage functions.
 func (b *blueprint) STATUS(code int, managers ...state.Manage) {
 	b.SetRawStatus(code, managers...)
 	b.push(func() {

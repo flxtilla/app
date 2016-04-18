@@ -9,7 +9,7 @@ import (
 
 // Blueprints is an anchor interface that implements a root Blueprint, in
 // addition to methods for listing, determining existence, attachement, and
-// mounting of other blueprints.
+// mounting of other blueprints used by a flotilla application.
 type Blueprints interface {
 	Blueprint
 	ListBlueprints() []Blueprint
@@ -22,7 +22,8 @@ type blueprints struct {
 	Blueprint
 }
 
-// NewBlueprints returns a new, default Blueprints.
+// NewBlueprints returns a default Blueprints provided a string prefix, a
+// HandleFn, and a state.Make function.
 func NewBlueprints(prefix string, fn HandleFn, mk state.Make) Blueprints {
 	return &blueprints{
 		Blueprint: newBlueprint(prefix, NewHandles(fn), NewMakes(mk)),
@@ -60,7 +61,9 @@ func (b *blueprints) BlueprintExists(prefix string) (Blueprint, bool) {
 	return nil, false
 }
 
-// Given any number of Blueprints, Attach integrates each with the App.
+// Given any number of Blueprints, Attach integrates each with the App, either
+// managing the Blueprint, or if the blueprint prefix exists, attaching routes
+// to the appropriate Blueprint.
 func (b *blueprints) Attach(blueprints ...Blueprint) {
 	for _, blueprint := range blueprints {
 		existing, exists := b.BlueprintExists(blueprint.Prefix())
