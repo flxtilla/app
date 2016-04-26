@@ -1,167 +1,215 @@
-package flotilla
+package app
 
 import (
+	"log"
+	"sort"
 	"strings"
 
-	"github.com/thrisp/flotilla/engine"
-	"github.com/thrisp/flotilla/xrr"
+	"github.com/flxtilla/cxre/asset"
+	"github.com/flxtilla/cxre/blueprint"
+	"github.com/flxtilla/cxre/engine"
+	"github.com/flxtilla/cxre/extension"
 )
 
-var configureFirst = []Configuration{
-	cengine,
+type ConfigFn func(*App) error
+
+type Config interface {
+	Order() int
+	Configure(*App) error
 }
 
-var configureLast = []Configuration{
-	cstatic,
-	cblueprints,
-	ctemplating,
-	csession,
+type config struct {
+	order int
+	fn    ConfigFn
 }
 
-type Config struct {
-	Configured    bool
-	Configuration []Configuration
-	deferred      []Configuration
+func DefaultConfig(fn ConfigFn) Config {
+	return config{50, fn}
 }
 
-type Configuration func(*App) error
+func NewConfig(order int, fn ConfigFn) Config {
+	return config{order, fn}
+}
 
-func newConfig(cnf ...Configuration) *Config {
-	return &Config{
-		Configured:    false,
-		Configuration: cnf,
-		deferred:      configureLast,
+func (c config) Order() int {
+	return c.order
+}
+
+func (c config) Configure(a *App) error {
+	return c.fn(a)
+}
+
+type configList []Config
+
+func (c configList) Len() int {
+	return len(c)
+}
+
+func (c configList) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
+func (c configList) Less(i, j int) bool {
+	return c[i].Order() < c[j].Order()
+}
+
+type Configuration interface {
+	AddConfig(...Config)
+	AddFn(...ConfigFn)
+	Configure() error
+	Configured() bool
+}
+
+type configuration struct {
+	a          *App
+	configured bool
+	list       configList
+}
+
+func newConfiguration(a *App, conf ...Config) *configuration {
+	c := &configuration{
+		a:    a,
+		list: builtIns,
+	}
+	c.AddConfig(conf...)
+	return c
+}
+
+func (c *configuration) AddConfig(conf ...Config) {
+	c.list = append(c.list, conf...)
+}
+
+func (c *configuration) AddFn(fns ...ConfigFn) {
+	for _, fn := range fns {
+		c.list = append(c.list, DefaultConfig(fn))
 	}
 }
 
-func runConf(a *App, cnf ...Configuration) error {
-	var err error
-	for _, fn := range cnf {
-		err = fn(a)
+func configure(a *App, conf ...Config) error {
+	for _, c := range conf {
+		err := c.Configure(a)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+func respondTo(c *configuration, err error) {
+	if err != nil {
+		log.Fatalf("%s", err.Error())
+	}
+}
+
+func (c *configuration) Configure() error {
+	sort.Sort(c.list)
+
+	err := configure(c.a, c.list...)
+	respondTo(c, err)
+	if err == nil {
+		c.configured = true
+	}
+
 	return err
 }
 
-func (a *App) Configure(cnf ...Configuration) error {
-	var err error
-	a.Configuration = append(a.Configuration, cnf...)
-	err = runConf(a, a.Configuration...)
-	err = runConf(a, a.Config.deferred...)
-	if err != nil {
-		return err
+func (c *configuration) Configured() bool {
+	return c.configured
+}
+
+var preConfig = []Config{
+	config{1, cEnsureEnvironment},
+	config{2, cEnsureEngine},
+	config{3, cEnsureBlueprints},
+}
+
+func cEnsureEnvironment(a *App) error {
+	if a.Environment == nil {
+		a.Environment = newEnvironment(a)
 	}
-	a.Configured = true
 	return nil
 }
 
-func cengine(a *App) error {
+func cEnsureEngine(a *App) error {
 	if a.Engine == nil {
-		a.Engine = engine.DefaultEngine(StatusRule(a))
+		a.Engine = engine.DefaultEngine(nil)
 	}
 	return nil
 }
 
-func csession(a *App) error {
-	a.Env.SessionInit()
+func cEnsureBlueprints(a *App) error {
+	if a.Blueprints == nil {
+		a.Blueprints = blueprint.NewBlueprints("/", a.Handle, a.StateFunction(a))
+	}
+	a.Handle("STATUS", "DEFAULT", a.StatusRule())
 	return nil
 }
 
-func ctemplating(a *App) error {
-	TemplatorInit(a)
-	return nil
+var builtIns = []Config{
+	config{1000, cRegisterBlueprints},
+	config{1001, cSessionInit},
+	config{1002, cRegisterTemplateRender},
 }
 
-func cstatic(a *App) error {
-	StaticorInit(a)
-	return nil
-}
-
-func cblueprints(a *App) error {
-	for _, b := range a.Blueprints() {
-		if !b.registered {
-			b.Register(a)
+func cRegisterBlueprints(a *App) error {
+	for _, b := range a.ListBlueprints() {
+		if !b.Registered() {
+			b.Register()
 		}
 	}
 	return nil
 }
 
-var IllegalMode = xrr.NewXrror("mode must be Development, Testing, or Production; not %s").Out
-
-func Mode(mode string, value bool) Configuration {
-	return func(a *App) error {
-		m := strings.Title(mode)
-		if existsIn(m, []string{"Development", "Testing", "Production"}) {
-			err := a.SetMode(m, value)
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-		return IllegalMode(mode)
-	}
+func cSessionInit(a *App) error {
+	a.Init()
+	return nil
 }
 
-func EnvItem(items ...string) Configuration {
-	return func(a *App) error {
+func cRegisterTemplateRender(a *App) error {
+	a.SetTemplateFunctions()
+	ext := extension.New(
+		"template_render_extension",
+		mkFunction("render_template", a.RenderTemplate),
+	)
+	a.Extend(ext)
+	return nil
+}
+
+// Mode returns a ConfigurationFn for the mode and value, e.g. Mode("testing",
+// true).
+func Mode(mode string, value bool) Config {
+	return DefaultConfig(func(a *App) error {
+		return a.SetMode(mode, value)
+	})
+}
+
+// Store returns a ConfigurationFn that adds key value items to the environment
+// Store in the form of "key:value".
+func Store(items ...string) Config {
+	return DefaultConfig(func(a *App) error {
 		for _, item := range items {
 			v := strings.Split(item, ":")
-			k, value := v[0], v[1]
-			sl := strings.Split(k, "_")
-			if len(sl) > 1 {
-				section, label := sl[0], strings.Join(sl[1:], "_")
-				a.Env.Store.add(section, label, value)
-			} else {
-				a.Env.Store.add("", sl[0], value)
-			}
+			key, value := v[0], v[1]
+			a.Add(key, value)
 		}
 		return nil
-	}
+	})
 }
 
-func Extensions(fxs ...Fxtension) Configuration {
-	return func(a *App) error {
-		return a.Env.AddFxtensions(fxs...)
-	}
-}
-
-func UseStaticor(s Staticor) Configuration {
-	return func(a *App) error {
-		a.Env.Staticor = s
+// Extend returns a ConfigurationFn that adds the provided extension.Extensions
+// to the app Environment.
+func Extend(fxs ...extension.Extension) Config {
+	return DefaultConfig(func(a *App) error {
+		a.Extend(fxs...)
 		return nil
-	}
+	})
 }
 
-func WithTemplator(t Templator) Configuration {
-	return func(a *App) error {
-		a.Env.Templator = t
+// Assets returns a ConfigurationFn adding the provided AssetFS to the app
+// Environment Assets.
+func Assets(as ...asset.AssetFS) Config {
+	return DefaultConfig(func(a *App) error {
+		a.SetAssetFS(as...)
 		return nil
-	}
-}
-
-func CtxProcessor(name string, fn interface{}) Configuration {
-	return func(a *App) error {
-		a.AddCtxProcessor(name, fn)
-		return nil
-	}
-}
-
-func CtxProcessors(fns map[string]interface{}) Configuration {
-	return func(a *App) error {
-		a.AddCtxProcessors(fns)
-		return nil
-	}
-}
-
-func WithAssets(ast ...AssetFS) Configuration {
-	return func(a *App) error {
-		a.Env.Assets = append(a.Env.Assets, ast...)
-		return nil
-	}
-}
-
-func WithQueue(name string, q Queue) Configuration {
-	return func(a *App) error {
-		a.Messaging.Queues[name] = q
-		return nil
-	}
+	})
 }

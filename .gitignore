@@ -27,4 +27,5 @@ Godeps/*
 !Godeps/Godeps.json
 
 *.out
+*.old.*
 coverage.html

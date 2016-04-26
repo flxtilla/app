@@ -5,6 +5,5 @@
 [![Coverage Status](https://coveralls.io/repos/thrisp/flotilla/badge.png?branch=master)](https://coveralls.io/r/thrisp/flotilla?branch=master)
 [![license](http://img.shields.io/badge/license-MIT-red.svg?)](https://raw.githubusercontent.com/thrisp/engine/master/LICENSE)
 
-A basic & extensible web framework in Go.
 
-https://thrisp.github.io/flotilla/
+The flotilla web application

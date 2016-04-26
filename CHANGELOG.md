@@ -1,8 +1,19 @@
 ##Changelog
 
+### Flotilla 2.0.0 (20.1.2016)
+
+- new internal package structure
+- refactored App Environment & Configuration
+- rewrite and separate packaging into more distributed libraries for App,
+  Assets, Extensions, Logging, Blueprints, Routes, Templates, Flash, etc.
+- changed 'Ctx' to 'State', including refactoring and a reversion to a fuller
+  interface with less emphasis on extension functions(but still retaining the
+  extension functionality for relevant items)
+
+
 ### Flotilla 1.1.0 (24.6.2015)
 
-- cleanup & refactor testing
+- refactored testing
 - Expectation & Performer based testing idioms
 - improvements to Blueprint registry
 - improvements to Route creation & management
